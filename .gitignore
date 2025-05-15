@@ -1,0 +1,14 @@
+
+# Terraform state & Cache
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Variable secrets
+terraform.tfvars
+terraform.tfvars.json
+
+#python Cache
+__pycache__/
+*.pyc 
+*.pyo 
