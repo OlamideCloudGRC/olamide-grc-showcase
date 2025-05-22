@@ -34,3 +34,25 @@ variable "instance_type" {
   type = string
   default = "t2.micro"
 }
+
+variable "trigger_bucket_name" {
+  description = "Name of the S3 bucket that will trigger Lambda functions"
+  type = string
+  default = "my-encrypted-s3-bucket"
+}
+
+variable "environment" {
+description = "Deployment Environment (eg Dev, Test, Prod)"
+type = string
+default = "Test"
+validation {
+  condition = contains(["Dev", "Test", "Prod", "Staging"])
+  error_message = "Envinronment must be one of: Dev, Test, Prod, Staging"
+}
+}
+
+variable "enable_bucket_versioning" {
+  description = "Enable bucket versioning on s3 bucket"
+  type = bool
+  default = true
+}
