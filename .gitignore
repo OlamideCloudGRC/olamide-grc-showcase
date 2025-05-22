@@ -1,5 +1,5 @@
 
-# Terraform state & Cache
+# Terraform state and Cache
 *.tfstate
 *.tfstate.backup
 .terraform/
