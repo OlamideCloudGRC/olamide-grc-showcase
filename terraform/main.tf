@@ -72,4 +72,49 @@ resource "aws_s3_bucket_policy" "trigger_bucket" {
 
 }
 
+# Create KMS Key for S3 encryption
+resource "aws_kms_key" "trigger_encryption" {
+  description             = " This key is used to encrypt uploaded objects"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
+# Aliasing the KMS Key
+resource "aws_kms_alias" "trigger_encryption" {
+  name          = "alias/trigger_bucket_encryption"
+  target_key_id = aws_kms_key.trigger_encryption.id
+}
+
+# Retrieve the current AWS account ID for use in KMS key policy conditions
+data "aws_caller_identity" "current" {}
+
+# KMS Key Policy
+resource "aws_kms_key_policy" "key_policy" {
+  key_id = aws_kms_key.trigger_encryption.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "s3.amazonaws.com"
+      },
+      Action = [
+        "kms:GenerateDataKey",
+        "kms:Decrypt"
+      ],
+      Resource = "*",
+      Condition = {
+        StringEquals = {
+          "aws:SourceAccount" : data.aws_caller_identity.current.account_id
+        }
+      }
+
+    }]
+  })
+}
 
