@@ -30,3 +30,19 @@ variable "compliance_tags" {
   }
     
 }
+
+variable "trigger_bucket_name" {
+  description = "Name of the S3 bucket that will trigger Lambda functions"
+  type        = string
+  default     = "my-encrypted-s3-bucket"
+  validation {
+    condition = can(regex("^[a-z0-9-]{3,63}",var.trigger_bucket_name))
+    error_message = "Bucketname must be 3-63 characters, lowercase, with hyphen only"
+  }
+}
+
+variable "enable_bucket_versioning" {
+  description = "Enable bucket versioning to preserve/retrieve all object versions. This is required for compliance"
+  type        = bool
+  default     = true
+}
