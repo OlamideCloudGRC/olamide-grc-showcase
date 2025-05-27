@@ -154,3 +154,49 @@ resource "aws_s3_bucket_lifecycle_configuration" "trigger_bucket" {
 
 }
 
+###------------------------------------------------------
+# LOG BUCKET COMPONENTS
+# Log Bucket + related resources for S3-> Lambda workflow
+###------------------------------------------------------
+
+
+
+# Create log bucket
+resource "aws_s3_bucket" "log_bucket" {
+  bucket = var.log_bucket
+
+ tags = merge(
+    local.standard_tags,
+    {
+      Name = var.log_bucket
+    }
+    )
+}
+
+# Enable logging for trigger bucket
+resource "aws_s3_bucket_logging" "bucket_logging" {
+  bucket = aws_s3_bucket.trigger_bucket.id
+
+  target_bucket = aws_s3_bucket.log_bucket.id
+  target_prefix = "logs/${var.trigger_bucket_name}/"
+}
+
+
+# Add Public Access Block
+resource "aws_s3_bucket_public_access_block" "log_bucket" {
+  bucket = aws_s3_bucket.log_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable bucket versioning for log bucket
+resource "aws_s3_bucket_versioning" "log_bucket" {
+  bucket = aws_s3_bucket.log_bucket.id
+  versioning_configuration {
+    status = var.enable_bucket_versioning ? "Enabled" : "Suspended"
+  }
+}
+
