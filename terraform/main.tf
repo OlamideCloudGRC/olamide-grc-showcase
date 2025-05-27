@@ -129,3 +129,28 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "trigger_bucket" {
     bucket_key_enabled = var.enable_bucket_key
   }
 }
+
+# Add Lifecycle Policy for trigger bucket
+resource "aws_s3_bucket_lifecycle_configuration" "trigger_bucket" {
+  bucket = aws_s3_bucket.trigger_bucket.id
+
+  rule {
+    id     = "auto-archive-old-files"
+    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+
+    expiration {
+      days = 365
+    }
+  }
+
+}
+
