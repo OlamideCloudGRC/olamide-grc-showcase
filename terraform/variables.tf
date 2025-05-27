@@ -52,3 +52,13 @@ variable "enable_bucket_key" {
   type = bool
   default = true
 }
+
+variable "log_bucket" {
+  description = "Name of the centralized log bucket. Follows naming convention <prefix>-logs-<env>"
+  type = string
+  default = "my-encrypted-logs-test"
+  validation {
+    condition = endswith(var.log_bucket, "-logs-${lower(var.environment)}")
+    error_message = "Log bucket name must end with '-logs-<env>' (lowercase)."
+  }
+}
