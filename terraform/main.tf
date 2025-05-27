@@ -159,8 +159,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "trigger_bucket" {
 # Log Bucket + related resources for S3-> Lambda workflow
 ###------------------------------------------------------
 
-
-
 # Create log bucket
 resource "aws_s3_bucket" "log_bucket" {
   bucket = var.log_bucket
@@ -198,5 +196,48 @@ resource "aws_s3_bucket_versioning" "log_bucket" {
   versioning_configuration {
     status = var.enable_bucket_versioning ? "Enabled" : "Suspended"
   }
+}
+
+# Create KMS Key for S3 encryption
+resource "aws_kms_key" "log_encryption" {
+  description             = "This key is used to encrypt uploaded logs"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
+# Aliasing the KMS Key
+resource "aws_kms_alias" "log_encryption" {
+  name          = "alias/log_bucket_encryption"
+  target_key_id = aws_kms_key.log_encryption.id
+}
+
+# KMS Key Policy
+resource "aws_kms_key_policy" "log_key_policy" {
+  key_id = aws_kms_key.log_encryption.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow",
+      Principal = {
+        Service = "s3.amazonaws.com"
+      },
+      Action = [
+        "kms:GenerateDataKey",
+        "kms:Decrypt"
+      ],
+      Resource = "*",
+      Condition = {
+        StringEquals = {
+          "aws:SourceAccount" : data.aws_caller_identity.current.account_id
+        }
+      }
+
+    }]
+  })
 }
 
