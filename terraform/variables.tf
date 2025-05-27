@@ -46,3 +46,9 @@ variable "enable_bucket_versioning" {
   type        = bool
   default     = true
 }
+
+variable "enable_bucket_key" {
+  description = "Reduce KMS costs by enabling S3 Buckey Keys (recommended for > 1000 objects/month)"
+  type = bool
+  default = true
+}
