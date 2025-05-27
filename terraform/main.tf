@@ -241,3 +241,14 @@ resource "aws_kms_key_policy" "log_key_policy" {
   })
 }
 
+# Enable server side encryption with KMS key
+resource "aws_s3_bucket_server_side_encryption_configuration" "log_bucket" {
+  bucket = aws_s3_bucket.log_bucket.id
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = aws_kms_key.log_encryption.arn
+      sse_algorithm     = "aws:kms"
+    }
+    bucket_key_enabled = var.enable_bucket_key
+  }
+}
