@@ -252,3 +252,28 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "log_bucket" {
     bucket_key_enabled = var.enable_bucket_key
   }
 }
+
+
+# Add Lifecycle Policy for log bucket
+resource "aws_s3_bucket_lifecycle_configuration" "log_bucket" {
+  bucket = aws_s3_bucket.log_bucket.id
+
+  rule {
+    id     = "auto-archive-log-files"
+    status = "Enabled"
+
+    filter {
+      prefix = "logs/"
+    }
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+
+    expiration {
+      days = 365
+    }
+  }
+
+}
