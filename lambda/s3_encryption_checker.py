@@ -58,3 +58,15 @@ class EncryptionViolations(Exception):
          f"Non-compliant encryption in s3://{bucket}/{key}. "
          f"Found: {found_encryption}, Required: {REQUIRED_ENCRYPTION}"
       )
+
+
+#==========================================#
+#       Function Definitions               #
+#==========================================#
+# Validate KMS key ARN to ensure accurate encryption compliance 
+def validate_kms_key(key_arn: str) -> bool:
+   return bool(
+      key_arn and
+      key_arn.startswith("arn:aws:kms:") and
+      ":key/" in key_arn
+   )
