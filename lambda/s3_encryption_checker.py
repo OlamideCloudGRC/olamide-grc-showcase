@@ -13,6 +13,7 @@ Features:
 #==========================================#
 import boto3
 from enum import IntEnum
+from botocore.exceptions import ClientError
 
 
 #==========================================#
@@ -70,3 +71,64 @@ def validate_kms_key(key_arn: str) -> bool:
       key_arn.startswith("arn:aws:kms:") and
       ":key/" in key_arn
    )
+
+# Validate encryption status of upload
+def check_encryption(bucket: str, key: str)-> dict:
+   """ 
+   Validates S3 Object encryption against defined compliance requirements
+
+   Args:
+    bucket (str): Name of the S3 bucket
+    key (str): Object key within the bucket
+
+    Returns:
+        dict: {
+        "bucket" : str,
+        "key": str,
+        "encryption" : str,
+        "kms_key_id" : str,
+        "compliant" : bool
+        "standards" : list
+        }
+
+    Raises:
+        EncryptionViolation: if the object fails encryption compliance checks.
+   """
+
+   try:
+      # Get the bucket and key information 
+      response = s3.head_object(Bucket=bucket, Key=key)
+
+      # Get the encryption information of the object
+      encryption = response.get("ServerSideEncryption")
+
+      # Get KMS key ID
+      kms_key_id = response.get("SSEKMSKeyId")
+
+      # Raise exception if encryption is missing or unsupported
+      if encryption not in REQUIRED_ENCRYPTION:
+         raise EncryptionViolations(bucket, key, encryption)
+      
+      # Validate KMS key 
+      if encryption == "aws:kms" and not validate_kms_key(kms_key_id):
+         raise EncryptionViolations(
+            bucket,
+            key,
+            f"Invalid KMS ARN : {kms_key_id}"
+         )
+      
+      return{
+         "bucket" : bucket,
+        "key": key,
+        "encryption" : encryption,
+        "kms_key_id" : kms_key_id,
+        "compliant" : True,
+        "standards" :COMPLIANCE_STANDARDS
+      }
+   
+   except ClientError as e:
+      raise EncryptionViolations(
+         bucket,
+         key,
+         f"AWS API Error: {str(e)}"
+      )
