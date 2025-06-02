@@ -14,7 +14,7 @@ Features:
 import boto3
 from enum import IntEnum
 from botocore.exceptions import ClientError
-
+from typing import Dict
 
 #==========================================#
 #                Constants                 #
@@ -37,6 +37,8 @@ REQUIRED_ENCRYPTION = ["aws:kms"]
 #             Service Clients              #
 #==========================================#
 s3 = boto3.client('s3')
+securityhub = boto3.client('securityhub')
+sts = boto3.client('sts')
 
 #==========================================#
 #       Class Definitions                  #
@@ -83,12 +85,12 @@ def check_encryption(bucket: str, key: str)-> dict:
 
     Returns:
         dict: {
-        "bucket" : str,
+        "bucket": str,
         "key": str,
-        "encryption" : str,
-        "kms_key_id" : str,
-        "compliant" : bool
-        "standards" : list
+        "encryption": str,
+        "kms_key_id": str,
+        "compliant": bool
+        "standards": list
         }
 
     Raises:
@@ -118,12 +120,12 @@ def check_encryption(bucket: str, key: str)-> dict:
          )
       
       return{
-         "bucket" : bucket,
+         "bucket": bucket,
         "key": key,
-        "encryption" : encryption,
-        "kms_key_id" : kms_key_id,
-        "compliant" : True,
-        "standards" :COMPLIANCE_STANDARDS
+        "encryption": encryption,
+        "kms_key_id": kms_key_id,
+        "compliant": True,
+        "standards":COMPLIANCE_STANDARDS
       }
    
    except ClientError as e:
@@ -132,3 +134,56 @@ def check_encryption(bucket: str, key: str)-> dict:
          key,
          f"AWS API Error: {str(e)}"
       )
+
+# Report violation to security hub
+
+def report_to_security_hub(violation: Dict) -> Dict:
+    """
+    Reports S3 encryption compliance violation to Security Hub
+
+    Args:
+        violation (dict): {
+            "bucket": str,
+            "key": str,
+            "message": str,
+            "standards": List[str]
+        }
+
+    Returns: 
+        dict: Security Hub API response
+    """
+
+    try:
+    # Get the caller account id and current region
+        account_id = sts.get_caller_identity()["Account"]
+        region = boto3.session.Session().region_name
+
+        return securityhub.batch_import_findings(
+           Findings = [{
+              "SchemaVersion": "2018-10-08",
+              "Id": f"s3-encryption-violation-{violation['bucket']}-{violation['key']}",
+              "ProductArn": f"arn:aws:securityhub:{region}:{account_id}:product/{account_id}/default",
+              "GeneratorId": "S3EncryptionChecker",
+              "Title": "Non-Compliant S3 Encryption",
+              "Description": violation["message"],
+              "Severity": {"Label": "HIGH"},
+              "Resources": [{
+                 "Type": "AwsS3Object",
+                 "Id": f"arn:aws:s3:::{violation['bucket']}/{violation['key']}",
+                 "Region": region
+              }],
+              "Compliance": {
+                 "Status": "FAILED",
+                 "RelatedRequirements": violation.get("standards",[])
+              },
+              "Workflow": {"Status": "NEW"},
+              "RecordState":"ACTIVE",
+              "FindingProviderFields": {
+                 "Severity": {"Label": "HIGH"},
+                 "Types": ["Software and Configuration Checks/AWS Security Best Practices"]
+              }
+           }]
+        )
+    except ClientError as e:
+       print(f"Security Hub Error: {str(e)}")
+       raise
