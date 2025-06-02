@@ -15,6 +15,8 @@ import boto3
 from enum import IntEnum
 from botocore.exceptions import ClientError
 from typing import Dict
+import json
+from datetime import datetime, timezone
 
 #==========================================#
 #                Constants                 #
@@ -147,6 +149,7 @@ def report_to_security_hub(violation: Dict) -> Dict:
             "key": str,
             "message": str,
             "standards": List[str]
+            "severity": SeverityLevel
         }
 
     Returns: 
@@ -166,7 +169,9 @@ def report_to_security_hub(violation: Dict) -> Dict:
               "GeneratorId": "S3EncryptionChecker",
               "Title": "Non-Compliant S3 Encryption",
               "Description": violation["message"],
-              "Severity": {"Label": "HIGH"},
+              "Severity": {
+                 "Label": "CRITICAL" if violation["severity"] == SeverityLevel.CRITICAL
+                 else "HIGH"},
               "Resources": [{
                  "Type": "AwsS3Object",
                  "Id": f"arn:aws:s3:::{violation['bucket']}/{violation['key']}",
@@ -187,3 +192,36 @@ def report_to_security_hub(violation: Dict) -> Dict:
     except ClientError as e:
        print(f"Security Hub Error: {str(e)}")
        raise
+    
+# Compliance Logging
+def log_compliance_event(
+      message: str,
+      severity: SeverityLevel,
+      **metadata
+) -> None:
+   """
+   Logs GRC event and reports critical severity findings to Security Hub.
+
+   Args: 
+      message (str): Description of the event
+      severity: Enum indicating SeverityLevel
+      **metadata: Additional event information
+   """
+
+   log_entry = {
+      "timestamp": datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
+      "severity": severity.name,
+      "message": message,
+      **metadata
+   }
+
+   print(json.dumps(log_entry, indent=2))
+
+   # Send critical and high findings to Security Hub
+   if severity == SeverityLevel.HIGH:
+      report_to_security_hub({
+         **metadata,
+         "message": message,
+         "standards": COMPLIANCE_STANDARDS,
+         "severity": severity
+      })
