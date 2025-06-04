@@ -16,7 +16,10 @@ from enum import IntEnum
 from botocore.exceptions import ClientError
 from typing import Dict
 import json
+import time
 from datetime import datetime, timezone
+import traceback
+from botocore.config import Config
 
 #==========================================#
 #                Constants                 #
@@ -39,7 +42,14 @@ REQUIRED_ENCRYPTION = ["aws:kms"]
 #             Service Clients              #
 #==========================================#
 s3 = boto3.client('s3')
-securityhub = boto3.client('securityhub')
+securityhub = boto3.client('securityhub', config=Config(
+   retries= {
+      'max_attempts': 3,
+      'mode': 'adaptive'
+   },
+   connect_timeout= 10,
+   read_timeout= 30
+))
 sts = boto3.client('sts')
 
 #==========================================#
@@ -48,19 +58,21 @@ sts = boto3.client('sts')
 
 # Define the severity levels Enum class
 class SeverityLevel(IntEnum):
-   CRITICAL = 4  # Compliance Violations
-   HIGH = 3      # Security misconfiguration
-   MEDIUM = 2    # Operational warnings
-   LOW = 1       # Informational
+   CRITICAL = 4  # Compliance Violations (e.g., unencrypted upload)
+   HIGH = 3      # Security misconfiguration (e.g., misconfigured KMS policies)
+   MEDIUM = 2    # Operational warnings (e.g., timeouts or retries)
+   LOW = 1       # Informational (e.g., successful encryption check)
 
 # Define Encryption violations Exception class
 class EncryptionViolations(Exception):
-   def __init__(self, bucket: str, key:str, found_encryption: str):
+   def __init__(self, bucket: str, key:str, found_encryption: str, severity: SeverityLevel, message:str = None):
       self.bucket = bucket
       self.key = key
-      self.found_encryption = found_encryption
+      self.found_encryption = found_encryption or "None"
+      self.severity= severity
+      self.message = message or f"{severity.name} violation in s3://{bucket}/{key}. Found:{found_encryption}, Required: {REQUIRED_ENCRYPTION}"
       super().__init__(
-         f"Non-compliant encryption in s3://{bucket}/{key}. "
+         f"{severity.name} violation in s3://{bucket}/{key}. "
          f"Found: {found_encryption}, Required: {REQUIRED_ENCRYPTION}"
       )
 
@@ -109,16 +121,24 @@ def check_encryption(bucket: str, key: str)-> dict:
       # Get KMS key ID
       kms_key_id = response.get("SSEKMSKeyId")
 
-      # Raise exception if encryption is missing or unsupported
+      # No Encryption (CRITICAL)
       if encryption not in REQUIRED_ENCRYPTION:
-         raise EncryptionViolations(bucket, key, encryption)
+         raise EncryptionViolations(
+            bucket = bucket,
+            key = key, 
+            found_encryption= encryption,
+            severity= SeverityLevel.CRITICAL,
+            message = f"Violates encryption policy: Found {encryption}, Required {REQUIRED_ENCRYPTION}"
+            )
       
       # Validate KMS key 
       if encryption == "aws:kms" and not validate_kms_key(kms_key_id):
          raise EncryptionViolations(
-            bucket,
-            key,
-            f"Invalid KMS ARN : {kms_key_id}"
+            bucket= bucket,
+            key= key,
+            found_encryption= f"Invalid KMS ARN : {kms_key_id}",
+            severity= SeverityLevel.HIGH,
+            message= "Invalid KMS Key configuration"
          )
       
       return{
@@ -141,7 +161,10 @@ def check_encryption(bucket: str, key: str)-> dict:
 
 def report_to_security_hub(violation: Dict) -> Dict:
     """
-    Reports S3 encryption compliance violation to Security Hub
+    Reports S3 encryption compliance violation to Security Hub with:
+    - Automatic retries
+    - Detailed error logging
+    - Compliance-standard mapping
 
     Args:
         violation (dict): {
@@ -157,12 +180,35 @@ def report_to_security_hub(violation: Dict) -> Dict:
     """
 
     try:
-    # Get the caller account id and current region
-        account_id = sts.get_caller_identity()["Account"]
-        region = boto3.session.Session().region_name
+      # Severity level mapping for API with fail-safe default
+      severity_mapping = {
+         SeverityLevel.CRITICAL: "CRITICAL",
+         SeverityLevel.HIGH: "HIGH",
+         SeverityLevel.MEDIUM: "MEDIUM",
+         SeverityLevel.LOW: "LOW"
+      }  
 
-        return securityhub.batch_import_findings(
-           Findings = [{
+      # Get severity label
+      severity_label = severity_mapping.get(violation["severity"])
+
+      # Log unmapped severity values
+      if severity_label is None:
+         log_compliance_event(
+            f"Unmapped severity level in Security Hub report:{violation['severity']}",
+            severity= SeverityLevel.HIGH,
+            bucket= violation.get("bucket"),
+            key= violation.get("key")
+         )
+         # Default to high
+         severity_label = "HIGH"
+
+
+      # Get the caller account id and current region
+      account_id = sts.get_caller_identity()["Account"]
+      region = boto3.session.Session().region_name
+
+      response= securityhub.batch_import_findings(
+         Findings = [{
               "SchemaVersion": "2018-10-08",
               "Id": f"s3-encryption-violation-{violation['bucket']}-{violation['key']}",
               "ProductArn": f"arn:aws:securityhub:{region}:{account_id}:product/{account_id}/default",
@@ -184,11 +230,22 @@ def report_to_security_hub(violation: Dict) -> Dict:
               "Workflow": {"Status": "NEW"},
               "RecordState":"ACTIVE",
               "FindingProviderFields": {
-                 "Severity": {"Label": "HIGH"},
+                 "Severity": {"Label": severity_label},
                  "Types": ["Software and Configuration Checks/AWS Security Best Practices"]
               }
            }]
         )
+      
+      # Log successful submission for audit trail
+      log_compliance_event(
+         message= "Security Hub submission succeeded",
+         severity= SeverityLevel.LOW,
+         reason= "Successful first-attempt delivery to Security Hub",
+         finding_id= response.get('ProcessedFindings', [{}])[0].get('Id'),
+      )
+
+      return response
+    
     except ClientError as e:
        print(f"Security Hub Error: {str(e)}")
        raise
@@ -225,3 +282,110 @@ def log_compliance_event(
          "standards": COMPLIANCE_STANDARDS,
          "severity": severity
       })
+
+# Define Lambda handler
+def lambda_handler(event: Dict, context) -> Dict:
+   """
+   For Lambda execution
+
+   Args:
+      event: S3 PutEvent notification
+      context: Lambda execution context
+
+   Returns:
+      dict: {
+      "statusCode": int,
+      "body": {
+         "processed": int,
+         "violations": List[Dict],
+         "timestamp":
+         "duration_ms":
+         "compliance_status": str
+         }
+      }
+   """
+   # Record start time for encryption check duration tracking
+   start_time = time.time()
+
+   # Creating a list to capture violations
+   violations = []
+
+   # Check remaining time (fail fast if insufficient)
+   if context.get_remaining_time_in_millis()< 5000:
+      log_compliance_event(
+         "Insufficient Lambda timeout remaining",
+         SeverityLevel.MEDIUM
+      )
+      raise TimeoutError("Less than 5 seconds remaining")
+
+   for record in event.get("Records", []):
+      try:
+         bucket = record["s3"]["bucket"]["name"]
+         key =record["s3"]["object"]["key"]
+
+         try:
+            result = check_encryption(bucket, key)
+            log_compliance_event(
+               f"Compliant encryption: s3://{bucket}/{key}",
+               SeverityLevel.LOW,
+               **result
+            )
+
+         except EncryptionViolations as e:
+            violations.append({
+               "bucket": e.bucket,
+               "key": e.key,
+               "error": str(e),
+               "severity":e.severity
+            })
+
+            log_compliance_event(
+               f"Encryption violation({e.severity.name}): {str(e)}",
+               severity= e.severity,
+               bucket= e.bucket,
+               key= e.key,
+               found_encryption= e.found_encryption
+            )
+      except KeyError as e:
+         log_compliance_event(
+            "Malformed S3 event record",
+            SeverityLevel.MEDIUM,
+            error= f"Missing key: {str(e)}",
+            raw_event= record
+         )
+
+      except Exception as e:
+         log_compliance_event(
+            f"Unexpected error processing record: {str(e)}",
+            SeverityLevel.HIGH,
+            error_type=e.__class__.__name__,
+            traceback= traceback.format_exc()
+         )
+
+         violations.append({
+            "bucket": "UNKNOWN",
+            "key": "UNKNOWN",
+            "error": f"Processing failed: {str(e)}",
+            "severity": SeverityLevel.HIGH 
+         })
+
+   # Record end time for encryption check
+   end_time = time.time()
+
+   # Calculate duration in milliseconds (rounded to 2 decimal places)
+   duration_ms = round((end_time - start_time) * 1000, 2)
+
+   # Generate current UTC timestamp in ISO format (with milliseconds)
+   timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
+
+   return{
+      "statusCode": 200 if not violations else 207,
+      "body": {
+         "processed": len(event.get("Records",[])),
+         "violations": violations,
+         "compliance_status": "PASS" if not violations else "FAIL",
+         "timestamp": timestamp,
+         "duration_ms": duration_ms,
+         "standards": COMPLIANCE_STANDARDS
+      }
+   }
