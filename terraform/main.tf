@@ -8,7 +8,7 @@ resource "aws_s3_bucket" "trigger_bucket" {
   bucket = var.trigger_bucket_name
 
   # Allow force destroy in non prod envinronment
-  force_destroy = var.environment != "Prod" 
+  force_destroy = var.environment != "Prod"
 
   tags = merge(
     local.standard_tags,
@@ -163,12 +163,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "trigger_bucket" {
 resource "aws_s3_bucket" "log_bucket" {
   bucket = var.log_bucket
 
- tags = merge(
+  tags = merge(
     local.standard_tags,
     {
       Name = var.log_bucket
     }
-    )
+  )
 }
 
 # Enable logging for trigger bucket
