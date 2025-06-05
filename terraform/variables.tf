@@ -17,18 +17,18 @@ variable "compliance_tags" {
   EOT
   type = object({
     DataClassification = string # Values: "Confidential"or "Internal" or "Public"
-    RetentionPeriod = string # Format: "^[0-9]+(yr|mo)$" (e.g, "1yr", "6mo")
-    Owner = string #Regex: "^[A-Z]+Team$" (eg, "SECURITYTeam")
+    RetentionPeriod    = string # Format: "^[0-9]+(yr|mo)$" (e.g, "1yr", "6mo")
+    Owner              = string #Regex: "^[A-Z]+Team$" (eg, "SECURITYTeam")
 
   })
   validation {
     condition = alltrue([
-      contains(["Confidential","Internal", "Public" ], var.compliance_tags.DataClassification),
+      contains(["Confidential", "Internal", "Public"], var.compliance_tags.DataClassification),
       can(regex("^[0-9]+(yr|mo)$", var.compliance_tags.RetentionPeriod))
     ])
     error_message = "Invalid compliance tags. See variable description for format"
   }
-    
+
 }
 
 variable "trigger_bucket_name" {
@@ -36,7 +36,7 @@ variable "trigger_bucket_name" {
   type        = string
   default     = "my-encrypted-s3-bucket"
   validation {
-    condition = can(regex("^[a-z0-9-]{3,63}",var.trigger_bucket_name))
+    condition     = can(regex("^[a-z0-9-]{3,63}", var.trigger_bucket_name))
     error_message = "Bucketname must be 3-63 characters, lowercase, with hyphen only"
   }
 }
@@ -49,16 +49,16 @@ variable "enable_bucket_versioning" {
 
 variable "enable_bucket_key" {
   description = "Reduce KMS costs by enabling S3 Buckey Keys (recommended for > 1000 objects/month)"
-  type = bool
-  default = true
+  type        = bool
+  default     = true
 }
 
 variable "log_bucket" {
   description = "Name of the centralized log bucket. Follows naming convention <prefix>-logs-<env>"
-  type = string
-  default = "my-encrypted-logs-test"
+  type        = string
+  default     = "my-encrypted-logs-test"
   validation {
-    condition = endswith(var.log_bucket, "-logs-${lower(var.environment)}")
+    condition     = endswith(var.log_bucket, "-logs-${lower(var.environment)}")
     error_message = "Log bucket name must end with '-logs-<env>' (lowercase)."
   }
 }
