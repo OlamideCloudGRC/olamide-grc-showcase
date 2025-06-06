@@ -354,3 +354,37 @@ data "aws_iam_policy_document" "lambda_permissions" {
   }
 }
 
+# Attach lambda permission to lambda execution role
+resource "aws_iam_role_policy" "lambda_policy" {
+  name = "${var.function_name}-policy"
+  role = aws_iam_role.lambda_exec_role.id
+  policy = data.aws_iam_policy_document.lambda_permissions.json
+}
+
+
+# Create zip archive of lambda handler file
+data "archive_file" "lambda" {
+  type = "zip"
+  source_file = "${path.module}/lambda/s3_encryption_checker.py"
+  output_path = "${path.module}/lambda/s3_encryption_checker.zip"
+}
+
+# Create Lambda function
+resource "aws_lambda_function" "s3_encryption_checker" {
+  filename = data.archive_file.lambda.output_path
+  function_name = var.function_name
+  role = aws_iam_role.lambda_exec_role.arn
+  handler = var.lambda_handler
+  source_code_hash = data.archive_file.lambda.output_base64sha256
+  runtime = var.runtime
+  timeout = var.timeout
+  memory_size = var.memory_size
+  architectures = ["arm64"]
+  ephemeral_storage {
+    size = var.ephemeral_storage_size
+  }
+  reserved_concurrent_executions = var.reserved_concurrent_executions
+  environment {
+    variables = var.environment
+  }
+}
