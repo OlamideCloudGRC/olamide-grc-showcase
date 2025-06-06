@@ -8,7 +8,7 @@ resource "aws_s3_bucket" "trigger_bucket" {
   bucket = var.trigger_bucket_name
 
   # Allow force destroy in non prod envinronment
-  force_destroy = var.environment != "Prod"
+  force_destroy = var.environment != "Prod" 
 
   tags = merge(
     local.standard_tags,
@@ -163,12 +163,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "trigger_bucket" {
 resource "aws_s3_bucket" "log_bucket" {
   bucket = var.log_bucket
 
-  tags = merge(
+ tags = merge(
     local.standard_tags,
     {
       Name = var.log_bucket
     }
-  )
+    )
 }
 
 # Enable logging for trigger bucket
@@ -277,3 +277,80 @@ resource "aws_s3_bucket_lifecycle_configuration" "log_bucket" {
   }
 
 }
+
+
+# Write IAM policy for Lambda execution role
+ data "aws_iam_policy_document" "lambda_assume_role" {
+  statement {
+    effect = "Allow"
+
+    actions = ["sts:AssumeRole"]
+
+    principals{
+      type= "Service"
+      identifiers= ["lambda.amazonaws.com"]
+
+    }
+
+  }
+ }
+
+ # Create Lambda execution role
+ resource "aws_iam_role" "lambda_exec_role" {
+   name = "lambda_exec_role"
+   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+ }
+
+
+# Add permissions for Lambda function
+data "aws_iam_policy_document" "lambda_permissions" {
+  # S3 Access for trigger bucket only
+  statement {
+    sid = "S3ReadAccess"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:GetBucketLocation",
+      "s3:GetBucketTagging"
+    ]
+    resources = [
+      "arn:aws:s3:::${var.trigger_bucket_name}",
+      "arn:aws:s3:::${var.trigger_bucket_name}/*"
+    ]
+  }
+
+  # Permission for Security Hub submission
+  statement {
+    sid = "SecurityHubSubmitFindings"
+    effect = "Allow"
+    actions = [
+      "securityhub:BatchImportFindings"
+    ]
+    resources = ["*"]
+  }
+
+  # Permission for KMS key
+  statement {
+    sid = "KMSDescribeKey"
+    effect = "Allow"
+    actions = [
+      "kms:DescribeKey"
+    ]
+    resources = [aws_kms_key.trigger_encryption.arn]
+  }
+
+  # Permission for CloudWatch Logs
+  statement {
+    sid = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.function_name}:*"
+    ]
+  }
+}
+
