@@ -351,6 +351,19 @@ data "aws_iam_policy_document" "lambda_permissions" {
     resources = [
       "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.function_name}:*"
     ]
+    
+  }
+
+  # Add explicit deny
+  statement {
+    sid = "ExplicitDeny"
+    effect = "Deny"
+    actions = [
+      "s3:Delete*",
+      "s3:Put*",
+      "kms:Decrypt"
+    ]
+    resources = [*]
   }
 }
 
