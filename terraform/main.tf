@@ -363,7 +363,7 @@ data "aws_iam_policy_document" "lambda_permissions" {
       "s3:Put*",
       "kms:Decrypt"
     ]
-    resources = [*]
+    resources = ["*"]
   }
 }
 
@@ -398,6 +398,87 @@ resource "aws_lambda_function" "s3_encryption_checker" {
   }
   reserved_concurrent_executions = var.reserved_concurrent_executions
   environment {
-    variables = var.environment
+    variables = {
+      Environment= var.environment
+    }
   }
+}
+
+
+# Enforce tagging on S3 buckets
+data "aws_iam_policy_document" "require_s3_tag" {
+  # Allow compliant requests
+  statement {
+    sid = "AllowS3BucketCreationWithRequiredTags"
+    effect = "Allow"
+    actions = ["s3:CreateBucket"]
+    resources = ["*"]
+
+    # Ensure only allowed values are used for DataClassification
+    condition {
+      test = "ForAnyValue:StringEquals"
+      variable = "aws:RequestTag/DataClassification"
+      values = ["Confidential", "Internal", "Public"]
+    }
+
+    # Ensure only allowed values are used for RetentionPeriod
+    condition {
+      test = "StringLike"
+      variable = "aws:RequestTag/RetentionPeriod"
+      values = ["*yr","*mo"]
+    }
+
+    # Enforce allowed format for Owner tag (e.g., SECURITYTeam, DEVTeam)
+    condition {
+      test = "StringLike"
+      variable = "aws:RequestTag/Owner"
+      values = ["*Team"]
+    }
+  }
+
+
+  # Deny non-compliant requests
+  statement {
+    sid = "DenyS3BucketCreationWithoutRequiredTags"
+    effect= "Deny"
+    actions= ["s3:CreateBucket"]
+    resources = ["*"]
+
+    # Deny creation if required tag: DataClassification is missing
+    condition {
+      test = "Null"
+      variable = "aws:RequestTag/DataClassification"
+      values = ["true"]
+    }
+    
+    # Deny creation if required tag: RetentionPeriod is missing
+    condition {
+      test = "Null"
+      variable = "aws:RequestTag/RetentionPeriod"
+      values = ["true"]
+    }
+
+    # Deny creation if required tag: Owner is missing
+    condition {
+      test = "Null"
+      variable = "aws:RequestTag/Owner"
+      values = ["true"]
+    }
+  }
+}
+
+
+# Define AWS Organization SCP using the IAM policy Document
+resource "aws_organizations_policy" "require_s3_tag" {
+  name = "S3_tagging_policy"
+  description = "SCP to enforce tagging standards on all new S3 bucket creations"
+  content = data.aws_iam_policy_document.require_s3_tag.json
+}
+
+# Attach policy to AWS Organization
+data "aws_organizations_organization" "org" {}
+
+resource "aws_organizations_policy_attachment" "s3_tag_policy_attach" {
+  policy_id = aws_organizations_policy.require_s3_tag.id
+  target_id = data.aws_organizations_organization.org.roots[0].id
 }

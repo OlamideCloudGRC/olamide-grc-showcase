@@ -65,49 +65,49 @@ variable "log_bucket" {
 
 variable "region" {
   description = "AWS region where resources are deployed"
-  type = string
-  default = "us-east-1"
+  type        = string
+  default     = "us-east-1"
 }
 
 variable "function_name" {
   description = "Name of the Lambda function"
-  type = string
-  default = "s3-encryption-compliance-checker"
+  type        = string
+  default     = "s3-encryption-compliance-checker"
 }
 
 variable "lambda_handler" {
   description = "Handler entry point in the format: <filename>.<function_name>"
-  type = string
-  default = "s3_encryption_checker.lambda_handler"
+  type        = string
+  default     = "s3_encryption_checker.lambda_handler"
 }
 
 variable "runtime" {
   description = "Lambda runtime environment"
-  type = string
-  default = "python3.11"
+  type        = string
+  default     = "python3.11"
 }
 
 variable "timeout" {
   description = "Maximum execution time in seconds for Lambda function"
-  type = number
-  default = 30
+  type        = number
+  default     = 30
 
 }
 
 variable "memory_size" {
   description = "Memory allocated to the Lambda function in MB"
-  type = number
-  default = 128
+  type        = number
+  default     = 128
 }
 
 variable "ephemeral_storage_size" {
   description = "Amount of ephemeral storage (MB) available to the Lambda function"
-  type = number
-  default = 512
+  type        = number
+  default     = 512
 }
 
 variable "reserved_concurrent_executions" {
   description = "Number of reserved concurrent Lambda executions"
-  type = number
-  default = 10
+  type        = number
+  default     = 10
 }
