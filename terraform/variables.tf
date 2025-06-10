@@ -111,3 +111,9 @@ variable "reserved_concurrent_executions" {
   type        = number
   default     = 10
 }
+
+variable "config_delivery_bucket" {
+  description = "Name for the s3 bucket used for AWS Config delivery"
+  type        = string
+  default     = "s3-tagging-config-delivery"
+}
