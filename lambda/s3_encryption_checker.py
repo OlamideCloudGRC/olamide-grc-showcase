@@ -78,6 +78,28 @@ class EncryptionViolations(Exception):
 #==========================================#
 #       Function Definitions               #
 #==========================================#
+# Check if Security Hub is enabled
+def is_security_hub_enabled() -> bool:
+   """
+   Checks if AWS Security Hub is enabled in the current region/account
+
+   Returns:
+      bool: True if Security Hub is enabled, False otherwise
+   """
+   try:
+      response = securityhub.describe_hub()
+      return True
+   
+   except securityhub.exceptions.ResourceNotFoundException:
+      return False
+   
+   except ClientError as e:
+      log_compliance_event(
+         message= f"Error checking Security Hub status: {str(e)}",
+         severity= SeverityLevel.MEDIUM
+      )
+      return False
+
 # Validate KMS key ARN to ensure accurate encryption compliance 
 def validate_kms_key(key_arn: str) -> bool:
    return bool(
@@ -178,6 +200,16 @@ def report_to_security_hub(violation: Dict) -> Dict:
     Returns: 
         dict: Security Hub API response
     """
+    # Check if Security Hub is enabled before proceeding
+    if not is_security_hub_enabled():
+         log_compliance_event(
+            message= "Security Hub is not enabled - skipping finding submission",
+            severity= SeverityLevel.MEDIUM,
+            bucket= violation.get("bucket"),
+            key= violation.get("key")
+          )
+         return None
+
 
     try:
       # Severity level mapping for API with fail-safe default
@@ -272,13 +304,22 @@ def log_compliance_event(
    print(json.dumps(log_entry, indent=2))
 
    # Send critical and high findings to Security Hub
-   if severity == SeverityLevel.HIGH:
-      report_to_security_hub({
-         **metadata,
-         "message": message,
-         "standards": COMPLIANCE_STANDARDS,
-         "severity": severity
+   if severity in [SeverityLevel.CRITICAL, SeverityLevel.HIGH]:
+      # Only report if Security Hub is enabled
+      if is_security_hub_enabled():
+         report_to_security_hub({
+            **metadata,
+            "message": message,
+            "standards": COMPLIANCE_STANDARDS,
+            "severity": severity
       })
+      
+      else:
+         log_compliance_event(
+            message= "Skipping Security Hub report - service not enabled",
+            severity= SeverityLevel.MEDIUM,
+            **metadata
+         )
 
 
 # Auto-remediate unencrypted S3 objects by applying SSE-KMS
