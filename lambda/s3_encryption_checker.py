@@ -66,15 +66,13 @@ class SeverityLevel(IntEnum):
 # Define Encryption violations Exception class
 class EncryptionViolations(Exception):
    def __init__(self, bucket: str, key:str, found_encryption: str, severity: SeverityLevel, message:str = None):
+      default_msg = message or f"{severity.name} violation in s3://{bucket}/{key}. Found:{found_encryption}, Required: {REQUIRED_ENCRYPTION}"
+      super().__init__(default_msg)
       self.bucket = bucket
       self.key = key
       self.found_encryption = found_encryption or "None"
       self.severity= severity
-      self.message = message or f"{severity.name} violation in s3://{bucket}/{key}. Found:{found_encryption}, Required: {REQUIRED_ENCRYPTION}"
-      super().__init__(
-         f"{severity.name} violation in s3://{bucket}/{key}. "
-         f"Found: {found_encryption}, Required: {REQUIRED_ENCRYPTION}"
-      )
+      
 
 
 #==========================================#
@@ -152,9 +150,11 @@ def check_encryption(bucket: str, key: str)-> dict:
    
    except ClientError as e:
       raise EncryptionViolations(
-         bucket,
-         key,
-         f"AWS API Error: {str(e)}"
+         bucket= bucket,
+         key= key,
+         found_encryption="UNKNOWN",
+         severity= SeverityLevel.HIGH,
+         message= f"AWS API Error: {str(e)}"
       )
 
 # Report violation to security hub
@@ -215,9 +215,6 @@ def report_to_security_hub(violation: Dict) -> Dict:
               "GeneratorId": "S3EncryptionChecker",
               "Title": "Non-Compliant S3 Encryption",
               "Description": violation["message"],
-              "Severity": {
-                 "Label": "CRITICAL" if violation["severity"] == SeverityLevel.CRITICAL
-                 else "HIGH"},
               "Resources": [{
                  "Type": "AwsS3Object",
                  "Id": f"arn:aws:s3:::{violation['bucket']}/{violation['key']}",
@@ -283,6 +280,42 @@ def log_compliance_event(
          "severity": severity
       })
 
+
+# Auto-remediate unencrypted S3 objects by applying SSE-KMS
+def remediate_unencrypted_object(bucket:str, key:str) -> Dict:
+   """
+   Applies SSE-KMS encryption to non-compliant S3 objects.
+   Returns remediation status for logging
+   """
+
+   try:
+      # Copy object into itself with encryption (preserves metadata)
+      s3.copy_object(
+         Bucket= bucket,
+         Key= key,
+         CopySource= {"Bucket":bucket, "Key":key},
+         ServerSideEncryption= "aws:kms",
+         SSEKMSKeyId= "alias/aws/s3",
+         MetadataDirective= "COPY"
+      )
+
+      return {
+         "status": "SUCCESS",
+         "action": "Applied SSE-KMS encryption",
+         "bucket": bucket,
+         "key": key
+
+      }
+   
+   except ClientError as e:
+      return {
+         "status": "FAILED",
+         "error": str(e),
+         "bucket": bucket,
+         "key": key
+      }
+
+
 # Define Lambda handler
 def lambda_handler(event: Dict, context) -> Dict:
    """
@@ -298,17 +331,20 @@ def lambda_handler(event: Dict, context) -> Dict:
       "body": {
          "processed": int,
          "violations": List[Dict],
-         "timestamp":
-         "duration_ms":
+         "remediations": List[Dict],
+         "timestamp": str,
+         "duration_ms": float,
          "compliance_status": str
+         "standards": List[str]
          }
       }
    """
    # Record start time for encryption check duration tracking
    start_time = time.time()
 
-   # Creating a list to capture violations
+   # Creating a list to capture violations and remediations
    violations = []
+   remediations = []
 
    # Check remaining time (fail fast if insufficient)
    if context.get_remaining_time_in_millis()< 5000:
@@ -332,20 +368,31 @@ def lambda_handler(event: Dict, context) -> Dict:
             )
 
          except EncryptionViolations as e:
-            violations.append({
+            violation= {
                "bucket": e.bucket,
                "key": e.key,
                "error": str(e),
                "severity":e.severity
-            })
+            }
+            violations.append(violation)
 
-            log_compliance_event(
-               f"Encryption violation({e.severity.name}): {str(e)}",
-               severity= e.severity,
-               bucket= e.bucket,
-               key= e.key,
-               found_encryption= e.found_encryption
-            )
+            # Auto-remediate CRITICAL severity level (unencrypted objects)
+            if e.severity == SeverityLevel.CRITICAL:
+               remediation_status = remediate_unencrypted_object(bucket, key)
+               remediation_status.update({
+                  "original_violation": violation
+               })
+               remediations.append(remediation_status)
+
+
+               log_compliance_event(
+                  f"Remediation attempt: {remediation_status['status']}",
+                  severity= SeverityLevel.LOW if remediation_status['status'] == "SUCCESS" else SeverityLevel.CRITICAL,
+                  bucket= e.bucket,
+                  key= e.key,
+                  found_encryption= e.found_encryption
+               )
+
       except KeyError as e:
          log_compliance_event(
             "Malformed S3 event record",
@@ -383,9 +430,10 @@ def lambda_handler(event: Dict, context) -> Dict:
       "body": {
          "processed": len(event.get("Records",[])),
          "violations": violations,
+         "remediations": remediations,
          "compliance_status": "PASS" if not violations else "FAIL",
          "timestamp": timestamp,
          "duration_ms": duration_ms,
          "standards": COMPLIANCE_STANDARDS
       }
-   }
+   } 
