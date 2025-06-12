@@ -117,3 +117,13 @@ variable "config_delivery_bucket" {
   type        = string
   default     = "s3-tagging-config-delivery"
 }
+
+variable "terraform_state_bucket_name" {
+  description = "Name for the S3 bucket for terraform state"
+  default = "grc-terraform-state"
+}
+
+variable "DynamoDB_table_name" {
+  description = "Name for DynamoDB table foe Terraform State Lock"
+  default = "terraform-lock-grc"
+}
