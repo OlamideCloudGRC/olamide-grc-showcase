@@ -378,8 +378,8 @@ resource "aws_iam_role_policy" "lambda_policy" {
 # Create zip archive of lambda handler file
 data "archive_file" "lambda" {
   type        = "zip"
-  source_file = "${path.module}/lambda/s3_encryption_checker.py"
-  output_path = "${path.module}/lambda/s3_encryption_checker.zip"
+  source_file = "${path.module}/../lambda/s3_encryption_checker.py"
+  output_path = "${path.module}/../lambda/s3_encryption_checker.zip"
 }
 
 # Create Lambda function
@@ -618,3 +618,114 @@ resource "aws_config_config_rule" "s3_bucket_tag_check" {
 
   depends_on = [aws_config_configuration_recorder.s3_config_recorder]
 }
+
+###------------------------------------------------------
+# Bucket + related resources for Terraform state
+###------------------------------------------------------
+
+# Create S3 bucket
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "${var.terraform_state_bucket_name}-${var.region}"
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = merge(
+    var.compliance_tags,
+    {
+      Name        = "Terraform State Storage"
+      Description = "Stores critical infrastructure state for GRC Lambda"
+    }
+  )
+}
+
+# Enable bucket versioning for Terraform state bucket
+resource "aws_s3_bucket_versioning" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Create KMS Key for S3 encryption
+resource "aws_kms_key" "state_encryption" {
+  description             = "This key is used to encrypt the terraform state"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.state_kms_key_policy.json
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
+# Aliasing the KMS Key
+resource "aws_kms_alias" "state_encryption" {
+  name          = "alias/state_bucket_encryption"
+  target_key_id = aws_kms_key.state_encryption.id
+}
+
+# KMS Key Policy
+data "aws_iam_policy_document" "state_kms_key_policy" {
+  statement {
+    sid    = "AllowTerraformAccess"
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/terraform-role"]
+    }
+    actions = [
+      "kms:Encrypt",
+      "kms:Decrypt",
+      "kms:GenerateDataKey*"
+    ]
+    resources = ["*"]
+  }
+}
+
+
+# Enable server side encryption with KMS key
+resource "aws_s3_bucket_server_side_encryption_configuration" "state_bucket" {
+  bucket = aws_s3_bucket.terraform_state.id
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = aws_kms_key.state_encryption.arn
+      sse_algorithm     = "aws:kms"
+    }
+    bucket_key_enabled = var.enable_bucket_key
+  }
+}
+
+
+# Deny Public Access to state bucket
+resource "aws_s3_bucket_public_access_block" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+
+# Locking terraform state to prevent concurrent modification
+resource "aws_dynamodb_table" "terraform_lock" {
+  name         = "${var.DynamoDB_table_name}-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = merge(
+    var.compliance_tags,
+    {
+      Name = "Terraform State Lock"
+    }
+  )
+}
+
+
+
