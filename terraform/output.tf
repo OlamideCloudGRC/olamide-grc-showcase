@@ -27,3 +27,12 @@ output "terraform_lock_table" {
   description = "Name of DynamoDB table for state locking"
   value = aws_dynamodb_table.terraform_lock.name
 }
+
+output "kms_lambda_checker" {
+  description = "Details of the KMS rotation compliance Lambda function "
+  value = {
+    name = aws_lambda_function.kms_rotation_checker.function_name
+    arn = aws_lambda_function.kms_rotation_checker.arn
+    role = aws_iam_role.kms_lambda_exec_role.arn
+  }
+}

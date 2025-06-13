@@ -127,3 +127,43 @@ variable "DynamoDB_table_name" {
   description = "Name for DynamoDB table foe Terraform State Lock"
   default = "terraform-lock-grc"
 }
+
+variable "monitored_kms_key" {
+  description = "List of KMS key aliases/ARNs to monitor for rotation"
+  type = list(string)
+  default = [ 
+    "alias/trigger_bucket_encryption",
+    "alias/log_bucket_encryption",
+    "alias/state_bucket_encryption"
+  ]
+  validation {
+    condition = alltrue([
+      for k in var.monitored_kms_key: can(regex("^(alias/|arn:aws:kms)", k))
+    ])
+    error_message = "Keys must be ARNs or begin with 'alias/'"
+  }
+}
+
+variable "kms_lambda_function_name" {
+  description = "Name of the Lambda function for KMS key compliance check"
+  type        = string
+  default     = "kms-key-compliance-checker"
+}
+
+variable "kms_lambda_handler" {
+  description = "Handler entry point in the format: <filename>.<function_name> for kms lambda"
+  type        = string
+  default     = "kms_rotation_checker.lambda_handler"
+}
+
+variable "kms_lambda_source_path" {
+  description = "Path to Lambda source Python file"
+  type = string
+  default = "${path.module}/../lambda/kms_rotation_checker.py"
+}
+
+variable "kms_lambda_output_path" {
+  description = "Path to output ZIP file for Lambda deployment package"
+  type = string
+  default = "${path.module}/../lambda/kms_rotation_checker.zip"
+}
