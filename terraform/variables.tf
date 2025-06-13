@@ -167,3 +167,8 @@ variable "kms_lambda_output_path" {
   type = string
   default = "${path.module}/../lambda/kms_rotation_checker.zip"
 }
+
+variable "sns_sub_email" {
+  description = "Email address to recieve critical GRC compliance alerts"
+  type = string
+}

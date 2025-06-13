@@ -87,3 +87,58 @@ resource "aws_lambda_function" "kms_rotation_checker" {
     }
   }
 }
+
+# SNS Topic for critical Alerts
+resource "aws_sns_topic" "critical_alerts" {
+  name = "grc-critical-alerts"
+}
+
+# Email Subscription to SNS topic
+resource "aws_sns_topic_subscription" "email_subscription" {
+  topic_arn = aws_sns_topic.critical_alerts.arn
+  protocol = "email"
+  endpoint = var.sns_sub_email
+}
+
+
+
+# Cloudwatch alarm:Trigger on critical s3 encryption findings
+resource "aws_cloudwatch_metric_alarm" "critical_findings" {
+  alarm_name = "s3-encryption-critical-findings"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods = 1
+  metric_name = "CriticalFindings"
+  namespace = "GRC/Compliance"
+  period = 300
+  statistic = "Sum"
+  threshold = 1
+  alarm_description = "Triggers when critical encryption violations are detected"
+  treat_missing_data = "notBreaching"
+  dimensions = {
+    FunctionName = aws_lambda_function.s3_encryption_checker.function_name
+  }
+
+  alarm_actions = [aws_sns_topic.critical_alerts.arn]
+
+}
+
+
+# Cloudwatch alarm:Trigger when multiple remediation attempts fail
+resource "aws_cloudwatch_metric_alarm" "failed_remediations" {
+  alarm_name = "s3-encryption-failed-remediations"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods = 1
+  metric_name = "FailedRemediations"
+  namespace = "GRC/Compliance"
+  period = 3600
+  statistic = "Sum"
+  threshold = 3
+  alarm_description = "Triggers when multiple remediation attempts fail"
+  treat_missing_data = "notBreaching"
+  dimensions = {
+    FunctionName = aws_lambda_function.s3_encryption_checker.function_name
+  }
+
+  alarm_actions = [aws_sns_topic.critical_alerts.arn]
+
+}
