@@ -727,5 +727,25 @@ resource "aws_dynamodb_table" "terraform_lock" {
   )
 }
 
+# Cloudwatch event rule to trigger daily KMS rotation compliance check
+resource "aws_cloudwatch_event_rule" "kms_key_rotation_check_schedule" {
+  name = "KMS-key-rotation-check"
+  description = "Triggers the KMS key rotation compliance check Lambda daily"
+  schedule_expression = "rate(1 day)"
+}
 
+# Add KMS Lambda function as the event rule target
+resource "aws_cloudwatch_event_target" "kms_lamda_target" {
+  rule = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.name
+  target_id = "kms-compliance-lambda"
+  arn = aws_lambda_function.kms_rotation_checker.arn
+}
 
+# Grant Eventbridge permission to invoke the  Lambda function
+resource "aws_lambda_permission" "allow_cloudwatch_kms" {
+  statement_id = "AllowExecutionFromCloudwatch"
+  action = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.kms_rotation_checker.function_name
+  principal = "events.amazonaws.com"
+  source_arn = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.arn
+}

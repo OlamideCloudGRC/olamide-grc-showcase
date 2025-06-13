@@ -36,3 +36,8 @@ output "kms_lambda_checker" {
     role = aws_iam_role.kms_lambda_exec_role.arn
   }
 }
+
+output "kms_event_rule" {
+  description = "Name of the cloudwatch rule triggering the KMS Compliance Lambda"
+  value = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.name
+}
