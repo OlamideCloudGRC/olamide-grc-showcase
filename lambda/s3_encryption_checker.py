@@ -43,14 +43,16 @@ REQUIRED_ENCRYPTION = ["aws:kms"]
 #==========================================#
 s3 = boto3.client('s3')
 securityhub = boto3.client('securityhub', config=Config(
-   retries= {
+   retries = {
       'max_attempts': 3,
       'mode': 'adaptive'
    },
-   connect_timeout= 10,
-   read_timeout= 30
+   connect_timeout = 10,
+   read_timeout = 30
 ))
 sts = boto3.client('sts')
+cloudwatch = boto3.client('cloudwatch')
+
 
 #==========================================#
 #       Class Definitions                  #
@@ -356,6 +358,55 @@ def remediate_unencrypted_object(bucket:str, key:str) -> Dict:
          "key": key
       }
 
+# Emit custom CloudWatch metrics for compliance findings
+def emit_cloudwatch_metrics(findings, context):
+   """ 
+   Send custom CloudWatch metrics for compliance findings
+   
+   Metrics:
+   - CriticalFindings: Count of findings with severity >= CRITICAL
+   - FailedRemediations: Coundt of findings where remediation_status is "FAILED"
+
+   Each metric includes the Lambda FunctionName as a dimension.
+   """
+   
+   try:
+      cloudwatch.put_metric_data(
+         Namespace = "GRC/Compliance",
+         MetricData = [
+            {
+               "MetricName" : "CriticalFindings",
+               "Dimensions" : [
+                  {
+                     "Name" : "FunctionName",
+                     "Value" : context.function_name
+                  }
+               ],
+               "Value" : len([f for f in findings if f['severity'] >= SeverityLevel.CRITICAL]),
+               "Unit" : "Count"
+            },
+            {
+               "MetricName" : "FailedRemediations",
+               "Dimensions" : [
+                  {
+                     "Name" : "FunctionName",
+                     "Value" : context.function_name
+                  }
+               ],
+               "Value" : len([f for f in findings if f.get("remediation_status") == "FAILED"]),
+               "Unit" : "Count"
+            }
+         ]
+      )
+
+   except ClientError as e:
+      log_compliance_event(
+         message = f"CloudWatch Metrics Error: {str(e)}",
+         severity = SeverityLevel.MEDIUM
+
+      )
+
+
 
 # Define Lambda handler
 def lambda_handler(event: Dict, context) -> Dict:
@@ -465,6 +516,9 @@ def lambda_handler(event: Dict, context) -> Dict:
 
    # Generate current UTC timestamp in ISO format (with milliseconds)
    timestamp = datetime.now(timezone.utc).isoformat(timespec='milliseconds')
+
+   # Emit custom metrics to Cloudwatch based on violation findings
+   emit_cloudwatch_metrics(violations, context)
 
    return{
       "statusCode": 200 if not violations else 207,
