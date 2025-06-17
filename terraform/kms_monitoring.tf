@@ -21,6 +21,18 @@ resource "aws_iam_role" "kms_lambda_exec_role" {
   assume_role_policy = data.aws_iam_policy_document.kms_lambda_assume_role.json
 }
 
+# Resolve each KMS alias in "monitored_kms_key" to its underlying KMS key ARN
+data "aws_kms_alias" "monitored_keys" {
+  for_each = toset(var.monitored_kms_key)
+  name     = each.value
+
+  depends_on = [ 
+    aws_kms_alias.trigger_encryption,
+    aws_kms_alias.log_encryption
+
+   ]
+}
+
 
 # IAM policy granting KMS rotation check and logging permissions for Lambda
 data "aws_iam_policy_document" "kms_lambda_permissions" {
@@ -28,13 +40,14 @@ data "aws_iam_policy_document" "kms_lambda_permissions" {
   statement {
     sid    = "GetKeyInfo"
     effect = "Allow"
-    resources = var.monitored_kms_key
+    resources = [
+      for alias in data.aws_kms_alias.monitored_keys : alias.target_key_arn
+    ]
     actions = [
       "kms:GetKeyRotationStatus",
-      "kms:ListKeys",
       "kms:DescribeKey"
     ]
-    
+
   }
 
   # Permission to create logs
@@ -46,7 +59,7 @@ data "aws_iam_policy_document" "kms_lambda_permissions" {
       "logs:CreateLogStream",
       "logs:PutLogEvents"
     ]
-    resources = "arn:aws:logs:*:*:*"
+    resources = ["arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.kms_lambda_function_name}:*"]
   }
 
 }
@@ -54,7 +67,7 @@ data "aws_iam_policy_document" "kms_lambda_permissions" {
 # Attach  permissions policy to lambda execution role
 resource "aws_iam_role_policy" "kms_lambda_policy" {
   name   = "${var.kms_lambda_function_name}-policy"
-  role   = aws_iam_role.kms_lambda_exec_role.id
+  role   = aws_iam_role.kms_lambda_exec_role.name
   policy = data.aws_iam_policy_document.kms_lambda_permissions.json
 }
 
@@ -62,8 +75,8 @@ resource "aws_iam_role_policy" "kms_lambda_policy" {
 # Archive lambda function code (Python script) into ZIP
 data "archive_file" "kms_lambda" {
   type        = "zip"
-  source_file = var.kms_lambda_source_path
-  output_path = var.kms_lambda_output_path
+  source_file = "${path.module}/../lambda/kms_rotation_checker.py"
+  output_path = "${path.module}/../lambda/kms_rotation_checker.zip"
 }
 
 # Create Lambda function for KMS compliance check
@@ -80,10 +93,9 @@ resource "aws_lambda_function" "kms_rotation_checker" {
   ephemeral_storage {
     size = var.ephemeral_storage_size
   }
-  reserved_concurrent_executions = var.reserved_concurrent_executions
   environment {
     variables = {
-      MONITORED_KEYS =jsonencode(var.monitored_kms_key)
+      MONITORED_KEYS = jsonencode(var.monitored_kms_key)
     }
   }
 }
@@ -96,24 +108,24 @@ resource "aws_sns_topic" "critical_alerts" {
 # Email Subscription to SNS topic
 resource "aws_sns_topic_subscription" "email_subscription" {
   topic_arn = aws_sns_topic.critical_alerts.arn
-  protocol = "email"
-  endpoint = var.sns_sub_email
+  protocol  = "email"
+  endpoint  = var.sns_sub_email
 }
 
 
 
 # Cloudwatch alarm:Trigger on critical s3 encryption findings
 resource "aws_cloudwatch_metric_alarm" "critical_findings" {
-  alarm_name = "s3-encryption-critical-findings"
+  alarm_name          = "s3-encryption-critical-findings"
   comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods = 1
-  metric_name = "CriticalFindings"
-  namespace = "GRC/Compliance"
-  period = 300
-  statistic = "Sum"
-  threshold = 1
-  alarm_description = "Triggers when critical encryption violations are detected"
-  treat_missing_data = "notBreaching"
+  evaluation_periods  = 1
+  metric_name         = "CriticalFindings"
+  namespace           = "GRC/Compliance"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  alarm_description   = "Triggers when critical encryption violations are detected"
+  treat_missing_data  = "notBreaching"
   dimensions = {
     FunctionName = aws_lambda_function.s3_encryption_checker.function_name
   }
@@ -125,16 +137,16 @@ resource "aws_cloudwatch_metric_alarm" "critical_findings" {
 
 # Cloudwatch alarm:Trigger when multiple remediation attempts fail
 resource "aws_cloudwatch_metric_alarm" "failed_remediations" {
-  alarm_name = "s3-encryption-failed-remediations"
+  alarm_name          = "s3-encryption-failed-remediations"
   comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods = 1
-  metric_name = "FailedRemediations"
-  namespace = "GRC/Compliance"
-  period = 3600
-  statistic = "Sum"
-  threshold = 3
-  alarm_description = "Triggers when multiple remediation attempts fail"
-  treat_missing_data = "notBreaching"
+  evaluation_periods  = 1
+  metric_name         = "FailedRemediations"
+  namespace           = "GRC/Compliance"
+  period              = 3600
+  statistic           = "Sum"
+  threshold           = 3
+  alarm_description   = "Triggers when multiple remediation attempts fail"
+  treat_missing_data  = "notBreaching"
   dimensions = {
     FunctionName = aws_lambda_function.s3_encryption_checker.function_name
   }

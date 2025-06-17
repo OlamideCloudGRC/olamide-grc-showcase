@@ -34,7 +34,7 @@ variable "compliance_tags" {
 variable "trigger_bucket_name" {
   description = "Name of the S3 bucket that will trigger Lambda functions"
   type        = string
-  default     = "my-encrypted-s3-bucket"
+  default     = "grc-encrypted-s3-bucket"
   validation {
     condition     = can(regex("^[a-z0-9-]{3,63}", var.trigger_bucket_name))
     error_message = "Bucketname must be 3-63 characters, lowercase, with hyphen only"
@@ -54,12 +54,12 @@ variable "enable_bucket_key" {
 }
 
 variable "log_bucket" {
-  description = "Name of the centralized log bucket. Follows naming convention <prefix>-logs-<env>"
+  description = "Prefix for the centralized log bucket"
   type        = string
-  default     = "my-encrypted-logs-test"
+  default     = "my-encrypted-logs"
   validation {
-    condition     = endswith(var.log_bucket, "-logs-${lower(var.environment)}")
-    error_message = "Log bucket name must end with '-logs-<env>' (lowercase)."
+    condition     = can(regex("^[a-z0-9-]{3,63}$", var.log_bucket))
+    error_message = "Log bucket prefix must be 3-63 characters, lowercase and contains only letters, numbers and hyphens."
   }
 }
 
@@ -106,11 +106,6 @@ variable "ephemeral_storage_size" {
   default     = 512
 }
 
-variable "reserved_concurrent_executions" {
-  description = "Number of reserved concurrent Lambda executions"
-  type        = number
-  default     = 10
-}
 
 variable "config_delivery_bucket" {
   description = "Name for the s3 bucket used for AWS Config delivery"
@@ -120,28 +115,21 @@ variable "config_delivery_bucket" {
 
 variable "terraform_state_bucket_name" {
   description = "Name for the S3 bucket for terraform state"
-  default = "grc-terraform-state"
+  default     = "grc-terraform-state"
 }
 
 variable "DynamoDB_table_name" {
   description = "Name for DynamoDB table foe Terraform State Lock"
-  default = "terraform-lock-grc"
+  default     = "terraform-lock-grc"
 }
 
 variable "monitored_kms_key" {
   description = "List of KMS key aliases/ARNs to monitor for rotation"
-  type = list(string)
-  default = [ 
+  type        = list(string)
+  default = [
     "alias/trigger_bucket_encryption",
-    "alias/log_bucket_encryption",
-    "alias/state_bucket_encryption"
+    "alias/log_bucket_encryption"
   ]
-  validation {
-    condition = alltrue([
-      for k in var.monitored_kms_key: can(regex("^(alias/|arn:aws:kms)", k))
-    ])
-    error_message = "Keys must be ARNs or begin with 'alias/'"
-  }
 }
 
 variable "kms_lambda_function_name" {
@@ -156,19 +144,8 @@ variable "kms_lambda_handler" {
   default     = "kms_rotation_checker.lambda_handler"
 }
 
-variable "kms_lambda_source_path" {
-  description = "Path to Lambda source Python file"
-  type = string
-  default = "${path.module}/../lambda/kms_rotation_checker.py"
-}
-
-variable "kms_lambda_output_path" {
-  description = "Path to output ZIP file for Lambda deployment package"
-  type = string
-  default = "${path.module}/../lambda/kms_rotation_checker.zip"
-}
 
 variable "sns_sub_email" {
   description = "Email address to recieve critical GRC compliance alerts"
-  type = string
+  type        = string
 }

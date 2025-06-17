@@ -5,7 +5,7 @@
 
 # Create S3 bucket 
 resource "aws_s3_bucket" "trigger_bucket" {
-  bucket = var.trigger_bucket_name
+  bucket = "${var.trigger_bucket_name}-${lower(var.environment)}-${data.aws_caller_identity.current.account_id}"
 
   # Allow force destroy in non prod envinronment
   force_destroy = var.environment != "Prod"
@@ -98,23 +98,36 @@ resource "aws_kms_key_policy" "key_policy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Service = "s3.amazonaws.com"
-      },
-      Action = [
-        "kms:GenerateDataKey",
-        "kms:Decrypt"
-      ],
-      Resource = "*",
-      Condition = {
-        StringEquals = {
-          "aws:SourceAccount" : data.aws_caller_identity.current.account_id
+    Statement = [
+      {
+        Sid    = "AllowS3ServiceToUseKey"
+        Effect = "Allow",
+        Principal = {
+          Service = "s3.amazonaws.com"
+        },
+        Action = [
+          "kms:GenerateDataKey",
+          "kms:Decrypt"
+        ],
+        Resource = "*",
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" : data.aws_caller_identity.current.account_id
+          }
         }
-      }
 
-    }]
+      },
+      {
+        Effect = "Allow",
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        Action = [
+          "kms:*"
+        ],
+        Resource = "*"
+      }
+    ]
   })
 }
 
@@ -161,7 +174,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "trigger_bucket" {
 
 # Create log bucket
 resource "aws_s3_bucket" "log_bucket" {
-  bucket = var.log_bucket
+  bucket = "${var.log_bucket}-${lower(var.environment)}"
 
   tags = merge(
     local.standard_tags,
@@ -221,23 +234,36 @@ resource "aws_kms_key_policy" "log_key_policy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Service = "s3.amazonaws.com"
-      },
-      Action = [
-        "kms:GenerateDataKey",
-        "kms:Decrypt"
-      ],
-      Resource = "*",
-      Condition = {
-        StringEquals = {
-          "aws:SourceAccount" : data.aws_caller_identity.current.account_id
+    Statement = [
+      {
+        Sid    = "AllowS3ServiceToUseKey"
+        Effect = "Allow",
+        Principal = {
+          Service = "s3.amazonaws.com"
+        },
+        Action = [
+          "kms:GenerateDataKey",
+          "kms:Decrypt"
+        ],
+        Resource = "*",
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" : data.aws_caller_identity.current.account_id
+          }
         }
-      }
 
-    }]
+      },
+      {
+        Effect = "Allow",
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        },
+        Action = [
+          "kms:*"
+        ],
+        Resource = "*"
+      }
+    ]
   })
 }
 
@@ -278,6 +304,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "log_bucket" {
 
 }
 
+###------------------------------------------------------
+# AWS LAMBDA COMPONENTS
+# AWS Lambda + related resources 
+###------------------------------------------------------
 
 # Write IAM policy for Lambda execution role
 data "aws_iam_policy_document" "lambda_assume_role" {
@@ -396,7 +426,6 @@ resource "aws_lambda_function" "s3_encryption_checker" {
   ephemeral_storage {
     size = var.ephemeral_storage_size
   }
-  reserved_concurrent_executions = var.reserved_concurrent_executions
   environment {
     variables = {
       Environment = var.environment
@@ -404,67 +433,96 @@ resource "aws_lambda_function" "s3_encryption_checker" {
   }
 }
 
-
+###------------------------------------------------------
+# AWS ORGANIZATION
+# AWS Organization + related resources 
+###------------------------------------------------------
 # Enforce tagging on S3 buckets
 data "aws_iam_policy_document" "require_s3_tag" {
-  # Allow compliant requests
+  # Deny creation if required tag 'DataClassification' is missing
   statement {
-    sid       = "AllowS3BucketCreationWithRequiredTags"
-    effect    = "Allow"
+    sid       = "DenyWithoutDataClassificationTags"
+    effect    = "Deny"
     actions   = ["s3:CreateBucket"]
     resources = ["*"]
 
-    # Ensure only allowed values are used for DataClassification
     condition {
-      test     = "ForAnyValue:StringEquals"
+      test     = "Null"
+      variable = "aws:RequestTag/DataClassification"
+      values   = ["true"]
+    }
+  }
+
+  # Deny creation if required tag 'RetentionPeriod' is missing
+  statement {
+    sid       = "DenyWithoutRetentionPeriod"
+    effect    = "Deny"
+    actions   = ["s3:CreateBucket"]
+    resources = ["*"]
+
+    condition {
+      test     = "Null"
+      variable = "aws:RequestTag/RetentionPeriod"
+      values   = ["true"]
+    }
+  }
+
+  # Deny creation if required tag 'Owner' is missing
+  statement {
+    sid       = "DenyWithoutOwner"
+    effect    = "Deny"
+    actions   = ["s3:CreateBucket"]
+    resources = ["*"]
+
+    condition {
+      test     = "Null"
+      variable = "aws:RequestTag/Owner"
+      values   = ["true"]
+    }
+  }
+
+  # Deny if DataClassification has invalid value
+  statement {
+    sid       = "DenyInvalidDataClassificationTag"
+    effect    = "Deny"
+    actions   = ["s3:CreateBucket"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringNotEqualsIfExists"
       variable = "aws:RequestTag/DataClassification"
       values   = ["Confidential", "Internal", "Public"]
     }
+  }
 
-    # Ensure only allowed values are used for RetentionPeriod
+  # Deny if RetentionPeriod doesn't follow expected pattern
+  statement {
+    sid       = "DenyInvalidRetentionPeriodTag"
+    effect    = "Deny"
+    actions   = ["s3:CreateBucket"]
+    resources = ["*"]
+
     condition {
-      test     = "StringLike"
+      test     = "StringNotLike"
       variable = "aws:RequestTag/RetentionPeriod"
       values   = ["*yr", "*mo"]
     }
+  }
 
-    # Enforce allowed format for Owner tag (e.g., SECURITYTeam, DEVTeam)
+  # Deny if Owner tag doesn't end with "Team"
+  statement {
+    sid       = "DenyInvalidOwnerTag"
+    effect    = "Deny"
+    actions   = ["s3:CreateBucket"]
+    resources = ["*"]
+
     condition {
-      test     = "StringLike"
+      test     = "StringNotLike"
       variable = "aws:RequestTag/Owner"
       values   = ["*Team"]
     }
   }
 
-
-  # Deny non-compliant requests
-  statement {
-    sid       = "DenyS3BucketCreationWithoutRequiredTags"
-    effect    = "Deny"
-    actions   = ["s3:CreateBucket"]
-    resources = ["*"]
-
-    # Deny creation if required tag: DataClassification is missing
-    condition {
-      test     = "Null"
-      variable = "aws:RequestTag/DataClassification"
-      values   = ["true"]
-    }
-
-    # Deny creation if required tag: RetentionPeriod is missing
-    condition {
-      test     = "Null"
-      variable = "aws:RequestTag/RetentionPeriod"
-      values   = ["true"]
-    }
-
-    # Deny creation if required tag: Owner is missing
-    condition {
-      test     = "Null"
-      variable = "aws:RequestTag/Owner"
-      values   = ["true"]
-    }
-  }
 }
 
 
@@ -544,6 +602,15 @@ data "aws_iam_policy_document" "s3_config_policy" {
     ]
     resources = ["${aws_s3_bucket.s3_for_config_delivery.arn}/*"]
   }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetBucketAcl",
+      "s3:GetBucketLocation"
+    ]
+    resources = [aws_s3_bucket.s3_for_config_delivery.arn]
+  }
 }
 
 # Create policy for AWS Config role
@@ -568,6 +635,66 @@ resource "aws_s3_bucket" "s3_for_config_delivery" {
     }
   )
 
+}
+
+# Create policy for AWS config delivery bucket
+data "aws_iam_policy_document" "config_delivery_policy" {
+  statement {
+    sid    = "AWSConfigBucketPermissionsCheck"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["config.amazonaws.com"]
+    }
+    actions   = ["s3:GetBucketAcl"]
+    resources = [aws_s3_bucket.s3_for_config_delivery.arn]
+  }
+
+  statement {
+    sid    = "AWSConfigBucketDelivery"
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["config.amazonaws.com"]
+    }
+    actions = [
+      "s3:PutObject",
+      "s3:PutObjectAcl"
+    ]
+    resources = [
+      format(
+        "%s/AWSLogs/%s/Config/*",
+        aws_s3_bucket.s3_for_config_delivery.arn,
+        data.aws_caller_identity.current.account_id
+      )
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "s3:x-amz-acl"
+      values   = ["bucket-owner-full-control"]
+    }
+  }
+
+  statement {
+    sid = "AllowConfigBucketValidation"
+    effect = "Allow"
+    principals {
+      type = "Service"
+      identifiers = ["config.amazonaws.com"]
+    }
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ]
+    resources = [aws_s3_bucket.s3_for_config_delivery.arn]
+  }
+}
+
+
+# Attach policy
+resource "aws_s3_bucket_policy" "config_delivery" {
+  bucket = aws_s3_bucket.s3_for_config_delivery.id
+  policy = data.aws_iam_policy_document.config_delivery_policy.json
 }
 
 # Create config recorder
@@ -598,7 +725,7 @@ resource "aws_config_configuration_recorder_status" "recorder_status" {
 
 # Config Rule with custom input parameters
 resource "aws_config_config_rule" "s3_bucket_tag_check" {
-  name        = "s3-bucket-tagging-check-$(var.environment)"
+  name        = "s3-bucket-tagging-check-${lower(var.environment)}"
   description = "Checks if S3 buckets have required tags"
   source {
     owner             = "AWS"
@@ -619,133 +746,27 @@ resource "aws_config_config_rule" "s3_bucket_tag_check" {
   depends_on = [aws_config_configuration_recorder.s3_config_recorder]
 }
 
-###------------------------------------------------------
-# Bucket + related resources for Terraform state
-###------------------------------------------------------
 
-# Create S3 bucket
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.terraform_state_bucket_name}-${var.region}"
-  lifecycle {
-    prevent_destroy = true
-  }
-
-  tags = merge(
-    var.compliance_tags,
-    {
-      Name        = "Terraform State Storage"
-      Description = "Stores critical infrastructure state for GRC Lambda"
-    }
-  )
-}
-
-# Enable bucket versioning for Terraform state bucket
-resource "aws_s3_bucket_versioning" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# Create KMS Key for S3 encryption
-resource "aws_kms_key" "state_encryption" {
-  description             = "This key is used to encrypt the terraform state"
-  deletion_window_in_days = 30
-  enable_key_rotation     = true
-  policy                  = data.aws_iam_policy_document.state_kms_key_policy.json
-
-  tags = {
-    Environment = var.environment
-  }
-}
-
-# Aliasing the KMS Key
-resource "aws_kms_alias" "state_encryption" {
-  name          = "alias/state_bucket_encryption"
-  target_key_id = aws_kms_key.state_encryption.id
-}
-
-# KMS Key Policy
-data "aws_iam_policy_document" "state_kms_key_policy" {
-  statement {
-    sid    = "AllowTerraformAccess"
-    effect = "Allow"
-    principals {
-      type        = "AWS"
-      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/terraform-role"]
-    }
-    actions = [
-      "kms:Encrypt",
-      "kms:Decrypt",
-      "kms:GenerateDataKey*"
-    ]
-    resources = ["*"]
-  }
-}
-
-
-# Enable server side encryption with KMS key
-resource "aws_s3_bucket_server_side_encryption_configuration" "state_bucket" {
-  bucket = aws_s3_bucket.terraform_state.id
-  rule {
-    apply_server_side_encryption_by_default {
-      kms_master_key_id = aws_kms_key.state_encryption.arn
-      sse_algorithm     = "aws:kms"
-    }
-    bucket_key_enabled = var.enable_bucket_key
-  }
-}
-
-
-# Deny Public Access to state bucket
-resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-
-# Locking terraform state to prevent concurrent modification
-resource "aws_dynamodb_table" "terraform_lock" {
-  name         = "${var.DynamoDB_table_name}-${var.environment}"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  tags = merge(
-    var.compliance_tags,
-    {
-      Name = "Terraform State Lock"
-    }
-  )
-}
 
 # Cloudwatch event rule to trigger daily KMS rotation compliance check
 resource "aws_cloudwatch_event_rule" "kms_key_rotation_check_schedule" {
-  name = "KMS-key-rotation-check"
-  description = "Triggers the KMS key rotation compliance check Lambda daily"
+  name                = "KMS-key-rotation-check"
+  description         = "Triggers the KMS key rotation compliance check Lambda daily"
   schedule_expression = "rate(1 day)"
 }
 
 # Add KMS Lambda function as the event rule target
 resource "aws_cloudwatch_event_target" "kms_lamda_target" {
-  rule = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.name
+  rule      = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.name
   target_id = "kms-compliance-lambda"
-  arn = aws_lambda_function.kms_rotation_checker.arn
+  arn       = aws_lambda_function.kms_rotation_checker.arn
 }
 
 # Grant Eventbridge permission to invoke the  Lambda function
 resource "aws_lambda_permission" "allow_cloudwatch_kms" {
-  statement_id = "AllowExecutionFromCloudwatch"
-  action = "lambda:InvokeFunction"
+  statement_id  = "AllowExecutionFromCloudwatch"
+  action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.kms_rotation_checker.function_name
-  principal = "events.amazonaws.com"
-  source_arn = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.arn
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.arn
 }
