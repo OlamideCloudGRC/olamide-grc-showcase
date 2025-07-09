@@ -26,11 +26,11 @@ data "aws_kms_alias" "monitored_keys" {
   for_each = toset(var.monitored_kms_key)
   name     = each.value
 
-  depends_on = [ 
+  depends_on = [
     aws_kms_alias.trigger_encryption,
     aws_kms_alias.log_encryption
 
-   ]
+  ]
 }
 
 

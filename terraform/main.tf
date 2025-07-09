@@ -7,7 +7,7 @@
 resource "aws_s3_bucket" "trigger_bucket" {
   bucket = "${var.trigger_bucket_name}-${lower(var.environment)}-${data.aws_caller_identity.current.account_id}"
 
-  # Allow force destroy in non prod envinronment
+  # Allow force destroy in non prod environment
   force_destroy = var.environment != "Prod"
 
   tags = merge(
@@ -37,6 +37,7 @@ resource "aws_s3_bucket_versioning" "trigger_bucket" {
 }
 
 # Deny unecrypted object uploads
+
 resource "aws_s3_bucket_policy" "trigger_bucket" {
   bucket = aws_s3_bucket.trigger_bucket.id
   policy = jsonencode({
@@ -71,6 +72,7 @@ resource "aws_s3_bucket_policy" "trigger_bucket" {
   })
 
 }
+
 
 # Create KMS Key for S3 encryption
 resource "aws_kms_key" "trigger_encryption" {
@@ -115,6 +117,19 @@ resource "aws_kms_key_policy" "key_policy" {
             "aws:SourceAccount" : data.aws_caller_identity.current.account_id
           }
         }
+
+      },
+      {
+        Sid    = "AllowLambdaDecrypt"
+        Effect = "Allow",
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${aws_iam_role.lambda_exec_role.name}"
+        },
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ],
+        Resource = "*"
 
       },
       {
@@ -176,12 +191,35 @@ resource "aws_s3_bucket_lifecycle_configuration" "trigger_bucket" {
 resource "aws_s3_bucket" "log_bucket" {
   bucket = "${var.log_bucket}-${lower(var.environment)}"
 
+  # Allow force destroy in non prod environment
+  force_destroy = var.environment != "Prod"
+
   tags = merge(
     local.standard_tags,
     {
       Name = var.log_bucket
     }
   )
+}
+
+# Log bucket policy
+resource "aws_s3_bucket_policy" "log_bucket" {
+  bucket = aws_s3_bucket.log_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid : "AWSLogDelivertWrite",
+        Effect : "Allow",
+        Principal : {
+          Service : "logging.s3.amazonaws.com"
+        },
+        Action : "s3:PutObject",
+        Resource : "${aws_s3_bucket.log_bucket.arn}/logs/*"
+      }
+    ]
+  })
 }
 
 # Enable logging for trigger bucket
@@ -236,33 +274,56 @@ resource "aws_kms_key_policy" "log_key_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowS3ServiceToUseKey"
-        Effect = "Allow",
+        Sid    = "AllowKeyAdministrationFromAccount"
+        Effect = "Allow"
         Principal = {
-          Service = "s3.amazonaws.com"
-        },
-        Action = [
-          "kms:GenerateDataKey",
-          "kms:Decrypt"
-        ],
-        Resource = "*",
-        Condition = {
-          StringEquals = {
-            "aws:SourceAccount" : data.aws_caller_identity.current.account_id
-          }
-        }
+          AWS = [
+            "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root",
+            data.aws_caller_identity.current.arn
+          ]
 
-      },
-      {
-        Effect = "Allow",
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-        },
+
+        }
         Action = [
-          "kms:*"
+          "kms:DescribeKey",
+          "kms:GetKeyPolicy",
+          "kms:PutKeyPolicy",
+          "kms:ListResourceTags"
         ],
         Resource = "*"
+      },
+
+      {
+        Sid    = "AllowS3LogDeliveryToEncrypt"
+        Effect = "Allow"
+        Principal = {
+          Service = "logging.s3.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = "${data.aws_caller_identity.current.account_id}"
+          }
+        }
+      },
+
+      {
+        Sid    = "AllowAccountToReadRotationStatus"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action = [
+          "kms:GetKeyRotationStatus"
+        ]
+        Resource = "*"
       }
+
     ]
   })
 }
@@ -340,12 +401,14 @@ data "aws_iam_policy_document" "lambda_permissions" {
     effect = "Allow"
     actions = [
       "s3:GetObject",
+      "s3:GetObjectVersion",
       "s3:GetBucketLocation",
-      "s3:GetBucketTagging"
+      "s3:GetBucketTagging",
+      "s3:PutObject"
     ]
     resources = [
-      "arn:aws:s3:::${var.trigger_bucket_name}",
-      "arn:aws:s3:::${var.trigger_bucket_name}/*"
+      aws_s3_bucket.trigger_bucket.arn,
+      "${aws_s3_bucket.trigger_bucket.arn}/*"
     ]
   }
 
@@ -354,6 +417,7 @@ data "aws_iam_policy_document" "lambda_permissions" {
     sid    = "SecurityHubSubmitFindings"
     effect = "Allow"
     actions = [
+      "securityhub:DescribeHub",
       "securityhub:BatchImportFindings"
     ]
     resources = ["*"]
@@ -384,16 +448,41 @@ data "aws_iam_policy_document" "lambda_permissions" {
 
   }
 
-  # Add explicit deny
+  # Permission to write custom CloudWatch metrics
+  statement {
+    sid    = "AllowPutMetricData"
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+    resources = ["*"]
+  }
+
+  # Permission to decrypt
+  statement {
+    sid    = "KMSDecryptAccess"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt"
+    ]
+    resources = [
+      aws_kms_key.trigger_encryption.arn,
+      aws_kms_key.log_encryption.arn
+    ]
+  }
+
+  # Explicitly deny S3 Object deletion and Object PUTS 
   statement {
     sid    = "ExplicitDeny"
     effect = "Deny"
     actions = [
       "s3:Delete*",
-      "s3:Put*",
-      "kms:Decrypt"
+      "s3:Put*"
     ]
-    resources = ["*"]
+    resources = [
+      aws_kms_key.trigger_encryption.arn,
+      aws_kms_key.log_encryption.arn
+    ]
   }
 }
 
@@ -428,9 +517,32 @@ resource "aws_lambda_function" "s3_encryption_checker" {
   }
   environment {
     variables = {
-      Environment = var.environment
+      Environment = var.environment,
+       KMS_KEY_ALIAS = var.trigger_bucket_kms_key_alias
     }
   }
+}
+
+# Grant S3 permission to invoke Lambda function when an object is uploaded
+resource "aws_lambda_permission" "allow_s3_trigger" {
+  statement_id  = "AllowS3Invoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.s3_encryption_checker.function_name
+  principal     = "s3.amazonaws.com"
+  source_arn    = aws_s3_bucket.trigger_bucket.arn
+}
+
+# Configure S3 to trigger the Lambda function on object upload events (PutObject)
+resource "aws_s3_bucket_notification" "s3_lambda_trigger" {
+  bucket = aws_s3_bucket.trigger_bucket.id
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.s3_encryption_checker.arn
+    events              = ["s3:ObjectCreated:Put"]
+  }
+
+  # Ensure Lambda permission is in place before configuring s3 notification
+  depends_on = [aws_lambda_permission.allow_s3_trigger]
 }
 
 ###------------------------------------------------------
@@ -676,10 +788,10 @@ data "aws_iam_policy_document" "config_delivery_policy" {
   }
 
   statement {
-    sid = "AllowConfigBucketValidation"
+    sid    = "AllowConfigBucketValidation"
     effect = "Allow"
     principals {
-      type = "Service"
+      type        = "Service"
       identifiers = ["config.amazonaws.com"]
     }
     actions = [
@@ -746,7 +858,10 @@ resource "aws_config_config_rule" "s3_bucket_tag_check" {
   depends_on = [aws_config_configuration_recorder.s3_config_recorder]
 }
 
-
+###------------------------------------------------------
+# AWS CLOUDWATCH COMPONENTS
+# AWS Cloudwatch + related resources 
+###------------------------------------------------------
 
 # Cloudwatch event rule to trigger daily KMS rotation compliance check
 resource "aws_cloudwatch_event_rule" "kms_key_rotation_check_schedule" {

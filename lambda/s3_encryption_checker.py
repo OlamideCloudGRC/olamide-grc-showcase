@@ -20,6 +20,7 @@ import time
 from datetime import datetime, timezone
 import traceback
 from botocore.config import Config
+import os
 
 #==========================================#
 #                Constants                 #
@@ -133,9 +134,12 @@ def check_encryption(bucket: str, key: str)-> dict:
         EncryptionViolation: if the object fails encryption compliance checks.
    """
 
+   print(f"Checking encryption on: s3://{bucket}/{key}")
    try:
       # Get the bucket and key information 
       response = s3.head_object(Bucket=bucket, Key=key)
+      print("[check_encryption] head_object response recieved")
+      print(json.dumps(response, default=str, indent=2))
 
       # Get the encryption information of the object
       encryption = response.get("ServerSideEncryption")
@@ -143,8 +147,14 @@ def check_encryption(bucket: str, key: str)-> dict:
       # Get KMS key ID
       kms_key_id = response.get("SSEKMSKeyId")
 
+      print(f"[check_encryption] ServerSideEncryption: {encryption}")
+      print(f"[check_encryption] SSEKMSKeyId: {kms_key_id}")
+
       # No Encryption (CRITICAL)
+      print(f"REQUIRED_ENCRYPTION = {REQUIRED_ENCRYPTION}")
+      print(f"Encryption used = {encryption}")
       if encryption not in REQUIRED_ENCRYPTION:
+         print("[check_encryption] Encryption is NOT compliant. Raising violation...")
          raise EncryptionViolations(
             bucket = bucket,
             key = key, 
@@ -154,15 +164,21 @@ def check_encryption(bucket: str, key: str)-> dict:
             )
       
       # Validate KMS key 
-      if encryption == "aws:kms" and not validate_kms_key(kms_key_id):
-         raise EncryptionViolations(
-            bucket= bucket,
-            key= key,
-            found_encryption= f"Invalid KMS ARN : {kms_key_id}",
-            severity= SeverityLevel.HIGH,
-            message= "Invalid KMS Key configuration"
-         )
-      
+      if encryption == "aws:kms":
+         if not validate_kms_key(kms_key_id):
+            print("[check_encryption] KMS key validation FAILED")
+            raise EncryptionViolations(
+               bucket= bucket,
+               key= key,
+               found_encryption= f"Invalid KMS ARN : {kms_key_id}",
+               severity= SeverityLevel.HIGH,
+               message= "Invalid KMS Key configuration"
+            )
+         else: 
+            print("[check_encryption] KMS key validation PASSED")
+
+      print("[check_encryption] Object encryption is COMPLIANT")
+
       return{
          "bucket": bucket,
         "key": key,
@@ -173,6 +189,9 @@ def check_encryption(bucket: str, key: str)-> dict:
       }
    
    except ClientError as e:
+      print("[check_encryption] ClientError encountered")
+      print(str(e))
+
       raise EncryptionViolations(
          bucket= bucket,
          key= key,
@@ -227,13 +246,7 @@ def report_to_security_hub(violation: Dict) -> Dict:
 
       # Log unmapped severity values
       if severity_label is None:
-         log_compliance_event(
-            f"Unmapped severity level in Security Hub report:{violation['severity']}",
-            severity= SeverityLevel.HIGH,
-            bucket= violation.get("bucket"),
-            key= violation.get("key")
-         )
-         # Default to high
+         print(f"[SecurityHub] Unmapped severity level: {violation['severity']}. Defaulting to HIGH.")
          severity_label = "HIGH"
 
 
@@ -241,17 +254,25 @@ def report_to_security_hub(violation: Dict) -> Dict:
       account_id = sts.get_caller_identity()["Account"]
       region = boto3.session.Session().region_name
 
+      now = datetime.now(timezone.utc).isoformat()
+      finding_tag = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+      finding_id = f"s3-encryption-violation-{violation['bucket']}-{violation['key']}-{finding_tag}"
+
       response= securityhub.batch_import_findings(
          Findings = [{
               "SchemaVersion": "2018-10-08",
-              "Id": f"s3-encryption-violation-{violation['bucket']}-{violation['key']}",
+              "Id": finding_id,
               "ProductArn": f"arn:aws:securityhub:{region}:{account_id}:product/{account_id}/default",
               "GeneratorId": "S3EncryptionChecker",
+              "AwsAccountId": account_id,
+              "CreatedAt": now,
+              "UpdatedAt": now,
               "Title": "Non-Compliant S3 Encryption",
               "Description": violation["message"],
               "Resources": [{
                  "Type": "AwsS3Object",
-                 "Id": f"arn:aws:s3:::{violation['bucket']}/{violation['key']}",
+                 "Id": f"arn:aws:s3:::{violation.get('bucket')}/{violation.get('key')}",
+                 "Partition": "aws",
                  "Region": region
               }],
               "Compliance": {
@@ -272,7 +293,7 @@ def report_to_security_hub(violation: Dict) -> Dict:
          message= "Security Hub submission succeeded",
          severity= SeverityLevel.LOW,
          reason= "Successful first-attempt delivery to Security Hub",
-         finding_id= response.get('ProcessedFindings', [{}])[0].get('Id'),
+         finding_id= finding_id
       )
 
       return response
@@ -303,6 +324,7 @@ def log_compliance_event(
       **metadata
    }
 
+   print("Logging compliant event")
    print(json.dumps(log_entry, indent=2))
 
    # Send critical and high findings to Security Hub
@@ -332,13 +354,14 @@ def remediate_unencrypted_object(bucket:str, key:str) -> Dict:
    """
 
    try:
+      print(f"[remediation] Using KMS key alias: {os.environ.get('KMS_KEY_ALIAS', 'alias/aws/s3')}")
       # Copy object into itself with encryption (preserves metadata)
       s3.copy_object(
          Bucket= bucket,
          Key= key,
          CopySource= {"Bucket":bucket, "Key":key},
          ServerSideEncryption= "aws:kms",
-         SSEKMSKeyId= "alias/aws/s3",
+         SSEKMSKeyId= os.environ.get("KMS_KEY_ALIAS", "alias/aws/s3"),
          MetadataDirective= "COPY"
       )
 
@@ -351,6 +374,7 @@ def remediate_unencrypted_object(bucket:str, key:str) -> Dict:
       }
    
    except ClientError as e:
+      print(f"[remediation] Remediation error: {str(e)}")
       return {
          "status": "FAILED",
          "error": str(e),
@@ -361,11 +385,11 @@ def remediate_unencrypted_object(bucket:str, key:str) -> Dict:
 # Emit custom CloudWatch metrics for compliance findings
 def emit_cloudwatch_metrics(findings, context):
    """ 
-   Send custom CloudWatch metrics for compliance findings
+   Send custom CloudWatch metrics for compliance findings(i.e., violations detected during encryption checks)
    
    Metrics:
    - CriticalFindings: Count of findings with severity >= CRITICAL
-   - FailedRemediations: Coundt of findings where remediation_status is "FAILED"
+   - FailedRemediations: Count of findings where remediation_status is "FAILED"
 
    Each metric includes the Lambda FunctionName as a dimension.
    """
@@ -431,6 +455,9 @@ def lambda_handler(event: Dict, context) -> Dict:
          }
       }
    """
+   print("Lambda triggered. Event:")
+   print(json.dumps(event, indent=2))
+   
    # Record start time for encryption check duration tracking
    start_time = time.time()
 
@@ -453,13 +480,25 @@ def lambda_handler(event: Dict, context) -> Dict:
 
          try:
             result = check_encryption(bucket, key)
-            log_compliance_event(
-               f"Compliant encryption: s3://{bucket}/{key}",
-               SeverityLevel.LOW,
-               **result
-            )
+            print("Encryption result returned:")
+            print(result)
+            print("Encrypyption check passed, now logging compliance event")
+            
+            try:
+               log_compliance_event(
+                  f"Compliant encryption: s3://{bucket}/{key}",
+                  SeverityLevel.LOW,
+                  **result
+               )
+               print("Compliance log for successful encryption done")
+               
+            except Exception as e:
+               print("Error during log_compliance_event")
+               print(str(e))
+
 
          except EncryptionViolations as e:
+            print("Encryption violation caught")
             violation= {
                "bucket": e.bucket,
                "key": e.key,
@@ -467,6 +506,7 @@ def lambda_handler(event: Dict, context) -> Dict:
                "severity":e.severity
             }
             violations.append(violation)
+
 
             # Auto-remediate CRITICAL severity level (unencrypted objects)
             if e.severity == SeverityLevel.CRITICAL:
@@ -484,6 +524,16 @@ def lambda_handler(event: Dict, context) -> Dict:
                   key= e.key,
                   found_encryption= e.found_encryption
                )
+
+         except Exception as e:
+            print ("Unexpected error during encryption check")
+            print(str(e))
+            violations.append({
+               "bucket" : bucket,
+               "key" : key,
+               "error" : f"unexpected error {str(e)}",
+               "severity" : SeverityLevel.HIGH
+            })
 
       except KeyError as e:
          log_compliance_event(
@@ -519,6 +569,8 @@ def lambda_handler(event: Dict, context) -> Dict:
 
    # Emit custom metrics to Cloudwatch based on violation findings
    emit_cloudwatch_metrics(violations, context)
+
+   print("Lambda execution completed")
 
    return{
       "statusCode": 200 if not violations else 207,

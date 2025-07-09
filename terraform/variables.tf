@@ -149,3 +149,10 @@ variable "sns_sub_email" {
   description = "Email address to recieve critical GRC compliance alerts"
   type        = string
 }
+
+variable "trigger_bucket_kms_key_alias" {
+  description = "Alias for KMS key to encrypt uploaded objects"
+  type = string
+  default = "alias/trigger_bucket_encryption"
+  
+}
