@@ -12,4 +12,7 @@ data "aws_dynamodb_table" "terraform_lock" {
   name = "terraform-lock-grc-test"
 }
 
-
+# Get AWS Availability zones in the current region
+data "aws_availability_zones" "current_region" {
+  state = "available"
+}

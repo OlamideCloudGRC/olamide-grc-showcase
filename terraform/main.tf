@@ -517,8 +517,8 @@ resource "aws_lambda_function" "s3_encryption_checker" {
   }
   environment {
     variables = {
-      Environment = var.environment,
-       KMS_KEY_ALIAS = var.trigger_bucket_kms_key_alias
+      Environment   = var.environment,
+      KMS_KEY_ALIAS = var.trigger_bucket_kms_key_alias
     }
   }
 }

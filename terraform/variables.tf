@@ -152,7 +152,38 @@ variable "sns_sub_email" {
 
 variable "trigger_bucket_kms_key_alias" {
   description = "Alias for KMS key to encrypt uploaded objects"
-  type = string
-  default = "alias/trigger_bucket_encryption"
-  
+  type        = string
+  default     = "alias/trigger_bucket_encryption"
+
 }
+
+variable "vpc_cidr" {
+  description = "Cidr block for the main VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "max_azs" {
+  description = "Maximum number of Azs to use (1-6)"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.max_azs >= 1 && var.max_azs <= 6
+    error_message = "Max AZs must be between 1 and 6"
+  }
+}
+
+variable "subnet_bits" {
+  description = "Number of additional bits for subnet masking (8 creates /24 from /16)"
+  type        = number
+  default     = 8
+} # This will give us a /24
+
+
+variable "subnet_stride" {
+  description = "Numerical gap between subnet groups per AZ to prevent overlap"
+  type        = number
+  default     = 16
+}
+

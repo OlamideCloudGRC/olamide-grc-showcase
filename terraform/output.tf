@@ -41,3 +41,13 @@ output "kms_event_rule" {
   description = "Name of the cloudwatch rule triggering the KMS Compliance Lambda"
   value       = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.name
 }
+
+output "public_subnets" {
+  description = "Map of public subnets by zone ID"
+  value       = local.public_subnets
+}
+
+output "private_subnets" {
+  description = "Map of private subnets by zone ID"
+  value       = local.private_subnets
+}
