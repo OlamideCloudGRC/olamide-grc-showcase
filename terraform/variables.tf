@@ -187,3 +187,60 @@ variable "subnet_stride" {
   default     = 16
 }
 
+
+variable "alb_log_bucket" {
+  description = "Prefix for the alb log bucket"
+  type        = string
+  default     = "alb-encrypted-logs"
+  validation {
+    condition     = can(regex("^[a-z0-9-]{3,63}$", var.alb_log_bucket))
+    error_message = "Log bucket prefix must be 3-63 characters, lowercase and contains only letters, numbers and hyphens."
+  }
+}
+
+variable "health_check_path" {
+  description = "Path for ALB health checks"
+  type        = string
+  default     = "/health"
+}
+
+variable "log_transition_to_ia_days" {
+  description = "Number of days before transitioning logs to IA storage"
+  type        = number
+  default     = 30
+}
+
+variable "log_transition_to_glacier_days" {
+  description = "Number of days before transitioning logs to Glacier"
+  type        = number
+  default     = 90
+}
+
+variable "log_expiration_days" {
+  description = "Number of days before expiring logs objects"
+  type        = number
+  default     = 365
+}
+
+variable "log_noncurrent_version_expiration_days" {
+  description = "Number of days before expiring non-current versions of log objects"
+  type        = number
+  default     = 30
+}
+
+variable "alb_idle_timeout" {
+  description = "The idle timeout value, in seconds for ALB"
+  type        = number
+  default     = 60
+}
+
+variable "terraform_exec_role_arn" {
+  description = "Execution role ARN created by bootstrap"
+  type        = string
+}
+
+variable "terraform_exec_role_name" {
+  description = "Least-priviledge role used to deploy the portfolio main stacke"
+  type        = string
+  default     = "PortfolioTerraformExecutionRole"
+}

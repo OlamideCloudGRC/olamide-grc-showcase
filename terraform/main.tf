@@ -91,8 +91,7 @@ resource "aws_kms_alias" "trigger_encryption" {
   target_key_id = aws_kms_key.trigger_encryption.id
 }
 
-# Retrieve the current AWS account ID for use in KMS key policy conditions
-data "aws_caller_identity" "current" {}
+
 
 # KMS Key Policy
 resource "aws_kms_key_policy" "key_policy" {
@@ -123,7 +122,7 @@ resource "aws_kms_key_policy" "key_policy" {
         Sid    = "AllowLambdaDecrypt"
         Effect = "Allow",
         Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${aws_iam_role.lambda_exec_role.name}"
+          AWS = aws_iam_role.lambda_exec_role.arn
         },
         Action = [
           "kms:Decrypt",
@@ -141,6 +140,27 @@ resource "aws_kms_key_policy" "key_policy" {
           "kms:*"
         ],
         Resource = "*"
+      },
+
+      # Allow Terraform role to manage key
+      {
+        Sid    = "AllowTerraformRoleToManageKey"
+        Effect = "Allow"
+        Principal = {
+          AWS = var.terraform_exec_role_arn
+        }
+
+        Action = [
+          "kms:CreateAlias",
+          "kms:TagResource",
+          "kms:DescribeKey",
+          "kms:GetKeyPolicy",
+          "kms:PutKeyPolicy",
+          "kms:ListResourceTags",
+          "kms:TagResource"
+        ]
+        Resource = "*"
+
       }
     ]
   })
@@ -210,7 +230,7 @@ resource "aws_s3_bucket_policy" "log_bucket" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid : "AWSLogDelivertWrite",
+        Sid : "AWSLogDeliveryWrite",
         Effect : "Allow",
         Principal : {
           Service : "logging.s3.amazonaws.com"
@@ -289,6 +309,7 @@ resource "aws_kms_key_policy" "log_key_policy" {
           "kms:GetKeyPolicy",
           "kms:PutKeyPolicy",
           "kms:ListResourceTags"
+
         ],
         Resource = "*"
       },
@@ -302,7 +323,8 @@ resource "aws_kms_key_policy" "log_key_policy" {
         Action = [
           "kms:Encrypt",
           "kms:GenerateDataKey*",
-          "kms:Decrypt"
+          "kms:Decrypt",
+          "kms:DescribeKey"
         ]
         Resource = "*"
         Condition = {
@@ -322,6 +344,27 @@ resource "aws_kms_key_policy" "log_key_policy" {
           "kms:GetKeyRotationStatus"
         ]
         Resource = "*"
+      },
+
+      # Allow Terraform role to manage key
+      {
+        Sid    = "AllowTerraformRoleToManageKey"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.terraform_exec_role_name}"
+        }
+
+        Action = [
+          "kms:CreateAlias",
+          "kms:TagResource",
+          "kms:DescribeKey",
+          "kms:GetKeyPolicy",
+          "kms:PutKeyPolicy",
+          "kms:ListResourceTags",
+          "kms:TagResource"
+        ]
+        Resource = "*"
+
       }
 
     ]
@@ -390,6 +433,10 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 resource "aws_iam_role" "lambda_exec_role" {
   name               = "lambda_exec_role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  path               = "/portfolio/"
+  tags = {
+    Project = "GRC-Portfolio"
+  }
 }
 
 
@@ -678,6 +725,10 @@ data "aws_iam_policy_document" "s3_config_assume_role" {
 resource "aws_iam_role" "s3_config_role" {
   name               = "s3-config-role"
   assume_role_policy = data.aws_iam_policy_document.s3_config_assume_role.json
+  path               = "/portfolio/"
+  tags = {
+    Project = "GRC-Portfolio"
+  }
 }
 
 # Create policy  document for AWS Config
@@ -738,6 +789,7 @@ resource "aws_s3_bucket" "s3_for_config_delivery" {
   force_destroy = var.environment != "Prod"
 
   tags = merge(
+    local.standard_tags,
     {
       Name               = "config-delivery-${var.environment}"
       Environment        = var.environment
@@ -885,3 +937,255 @@ resource "aws_lambda_permission" "allow_cloudwatch_kms" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.kms_key_rotation_check_schedule.arn
 }
+
+
+
+###------------------------------------------------------
+# ALB ACCESS LOG BUCKET COMPONENTS
+# Log Bucket + related resources for ALB Logs
+###------------------------------------------------------
+
+# Create log bucket with region-specific naming for global uniqueness
+resource "aws_s3_bucket" "alb_log_bucket" {
+  bucket = "${var.alb_log_bucket}-${lower(var.environment)}-${var.region}"
+
+  # Allow force destroy only in non-prod environments
+  force_destroy = var.environment != "Prod"
+
+  tags = merge(
+    local.standard_tags,
+    {
+      Name = "${var.alb_log_bucket}-${var.environment}"
+      Description : "Stores ALB access logs with encryption and lifecycle management"
+    }
+  )
+}
+
+# Alb Log bucket policy
+resource "aws_s3_bucket_policy" "alb_log_bucket" {
+  bucket = aws_s3_bucket.alb_log_bucket.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid : "AllowELBLogDelivery",
+        Effect : "Allow",
+        Principal : {
+          AWS : data.aws_elb_service_account.current_region.arn
+        },
+        Action : [
+          "s3:PutObject",
+          "s3:PutObjectAcl"
+
+        ]
+        Resource : "arn:aws:s3:::${aws_s3_bucket.alb_log_bucket.bucket}/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl" = "bucket-owner-full-control"
+          }
+        }
+      },
+
+      # Allow ELB Log delivery check
+      {
+        Sid    = "AllowELBLogDeliveryCheck"
+        Effect = "Allow"
+        Principal = {
+          AWS = data.aws_elb_service_account.current_region.arn
+        }
+        Action   = "s3:GetBucketAcl"
+        Resource = "arn:aws:s3:::${aws_s3_bucket.alb_log_bucket.bucket}"
+
+      },
+
+      # Deny Insecure transport
+      {
+        Sid : "DenyInsecureTransport",
+        Effect : "Deny",
+        Principal : "*",
+        Action : "s3:*",
+        Resource : [
+          "arn:aws:s3:::${aws_s3_bucket.alb_log_bucket.bucket}",
+          "arn:aws:s3:::${aws_s3_bucket.alb_log_bucket.bucket}/*"
+        ]
+        Condition : {
+          Bool : { "aws:SecureTransport" : "false" }
+        }
+      }
+    ]
+  })
+}
+
+
+# Add Public Access Block
+resource "aws_s3_bucket_public_access_block" "alb_log_bucket" {
+  bucket = aws_s3_bucket.alb_log_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable bucket versioning for alb log bucket
+resource "aws_s3_bucket_versioning" "alb_log_bucket" {
+  bucket = aws_s3_bucket.alb_log_bucket.id
+  versioning_configuration {
+    status = var.enable_bucket_versioning ? "Enabled" : "Suspended"
+  }
+
+  # depends_on = [aws_kms_key.alb_log_encryption]
+}
+
+# # Create KMS Key for alb log bucket encryption
+# resource "aws_kms_key" "alb_log_encryption" {
+#   description             = "KMS key for encrypting ALB access logs in ${var.environment} enviroment"
+#   deletion_window_in_days = var.environment == "Prod" ? 30 : 10
+#   enable_key_rotation     = true
+
+#   tags = merge(
+#     local.standard_tags,
+#     {
+#       Name = "kms-alb-logs-${var.environment}"
+#     }
+#   )
+# }
+
+# # Aliasing the KMS Key
+# resource "aws_kms_alias" "alb_log_encryption" {
+#   name          = "alias/alb_log_bucket_encryption_${var.environment}"
+#   target_key_id = aws_kms_key.alb_log_encryption.id
+# }
+
+# # KMS Key Policy
+# resource "aws_kms_key_policy" "alb_log_key_policy" {
+#   key_id = aws_kms_key.alb_log_encryption.id
+
+#   policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         Sid    = "AllowKeyAdministrationFromAccount"
+#         Effect = "Allow"
+#         Principal = {
+#           AWS = [
+#             "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root",
+#             data.aws_caller_identity.current.arn
+#           ]
+
+
+#         }
+#         Action = [
+#           "kms:DescribeKey",
+#           "kms:GetKeyPolicy",
+#           "kms:PutKeyPolicy",
+#           "kms:ListResourceTags"
+#         ],
+#         Resource = "*"
+#       },
+
+#       {
+#         Sid    = "AllowELBLogDeliveryToUseKey"
+#         Effect = "Allow"
+#         Principal = {
+#           AWS = data.aws_elb_service_account.current_region.arn
+#         }
+#         Action = [
+#           "kms:Encrypt",
+#           "kms:GenerateDataKey*"
+#         ]
+#         Resource = "*"
+#       },
+
+#       {
+#         Sid    = "AllowAccountToReadRotationStatus"
+#         Effect = "Allow"
+#         Principal = {
+#           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+#         }
+#         Action = [
+#           "kms:GetKeyRotationStatus"
+#         ]
+#         Resource = "*"
+#       },
+
+#       # Allow Terraform role to manage key
+#       {
+#         Sid = "AllowTerraformRoleToManageKey"
+#         Effect = "Allow"
+#         Principal = {
+#           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.terraform_exec_role_name}"
+#         }
+
+#         Action = [
+#           "kms:CreateAlias",
+#           "kms:TagResource",
+#           "kms:DescribeKey",
+#           "kms:GetKeyPolicy",
+#           "kms:PutKeyPolicy",
+#           "kms:ListResourceTags",
+#           "kms:TagResource"
+#         ]
+#         Resource ="*"
+
+#       }
+
+#     ]
+#   })
+# }
+
+# # Enable server side encryption with KMS key
+# resource "aws_s3_bucket_server_side_encryption_configuration" "alb_log_bucket" {
+#   bucket = aws_s3_bucket.alb_log_bucket.id
+#   rule {
+#     apply_server_side_encryption_by_default {
+#       kms_master_key_id = aws_kms_key.alb_log_encryption.arn
+#       sse_algorithm     = "aws:kms"
+#     }
+#     bucket_key_enabled = var.enable_bucket_key
+#   }
+# }
+
+
+# Add Lifecycle Policy for log bucket
+resource "aws_s3_bucket_lifecycle_configuration" "alb_log_bucket" {
+  bucket = aws_s3_bucket.alb_log_bucket.id
+
+  rule {
+    id     = "manage-alb-access-logs"
+    status = "Enabled"
+
+    filter {
+      prefix = "AWSLogs/"
+    }
+
+    # Transition to IA after 30 days
+    transition {
+      days          = var.log_transition_to_ia_days
+      storage_class = "STANDARD_IA"
+    }
+
+    # Transition to Glacier after 90 days
+    transition {
+      days          = var.log_transition_to_glacier_days
+      storage_class = "GLACIER"
+    }
+
+    # Expire logs after 365 days (1 year)
+    expiration {
+      days = var.log_expiration_days
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = var.log_noncurrent_version_expiration_days
+    }
+  }
+
+}
+
+

@@ -4,6 +4,7 @@ locals {
       Terraform    = "true"
       LastModified = formatdate("YYYY-MM-DD", timestamp())
       Environment  = var.environment
+      Project      = "GRC-Portfolio"
     },
     var.compliance_tags
   )
@@ -40,6 +41,9 @@ locals {
   }
 }
 
+locals {
+  terraform_exec_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.terraform_exec_role_name}"
+}
 
 
 

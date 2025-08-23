@@ -19,6 +19,10 @@ data "aws_iam_policy_document" "kms_lambda_assume_role" {
 resource "aws_iam_role" "kms_lambda_exec_role" {
   name               = "kms_lambda_exec_role"
   assume_role_policy = data.aws_iam_policy_document.kms_lambda_assume_role.json
+  path               = "/portfolio/"
+  tags = {
+    Project = "GRC-Portfolio"
+  }
 }
 
 # Resolve each KMS alias in "monitored_kms_key" to its underlying KMS key ARN

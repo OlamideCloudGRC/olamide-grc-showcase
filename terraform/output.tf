@@ -51,3 +51,33 @@ output "private_subnets" {
   description = "Map of private subnets by zone ID"
   value       = local.private_subnets
 }
+
+output "alb_dns_name" {
+  description = "The DNS name of the application Load Balancer"
+  value       = aws_lb.app_lb.dns_name
+}
+
+output "alb_arn" {
+  description = "The ARN of the application Load Balancer"
+  value       = aws_lb.app_lb.arn
+}
+
+output "alb_zone_id" {
+  description = "The hosted zone ID of the load balancer"
+  value       = aws_lb.app_lb.zone_id
+}
+
+output "alb_target_group_arn" {
+  description = "The ARN of the ALB target group"
+  value       = aws_lb_target_group.alb_tg.arn
+}
+
+output "alb_log_bucket_name" {
+  description = "The name of the S3 bucket for ALB logs"
+  value       = aws_s3_bucket.alb_log_bucket.bucket
+}
+
+output "alb_log_bucket_arn" {
+  description = "The ARN of the S3 bucket for ALB logs"
+  value       = aws_s3_bucket.alb_log_bucket.arn
+}
