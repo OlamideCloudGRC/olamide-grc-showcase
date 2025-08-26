@@ -244,3 +244,25 @@ variable "terraform_exec_role_name" {
   type        = string
   default     = "PortfolioTerraformExecutionRole"
 }
+
+variable "rate_limit" {
+  description = "Rate limit for IP-based blocking"
+  type        = number
+  default     = 1000
+}
+
+variable "blocked_countries" {
+  description = "List of country codes to block"
+  type        = list(string)
+  default     = ["RU"]
+}
+
+variable "waf_log_bucket" {
+  description = "Prefix for the waf log bucket"
+  type        = string
+  default     = "waf-logs"
+  validation {
+    condition     = can(regex("^[a-z0-9-]{3,63}$", var.waf_log_bucket))
+    error_message = "Log bucket prefix must be 3-63 characters, lowercase and contains only letters, numbers and hyphens."
+  }
+}

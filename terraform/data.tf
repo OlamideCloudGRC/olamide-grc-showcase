@@ -28,3 +28,6 @@ data "aws_route53_zone" "main_zone" {
   name         = "securewitholamide.com"
   private_zone = false
 }
+
+# Get current region
+data "aws_region" "current" {}

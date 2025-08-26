@@ -81,3 +81,8 @@ output "alb_log_bucket_arn" {
   description = "The ARN of the S3 bucket for ALB logs"
   value       = aws_s3_bucket.alb_log_bucket.arn
 }
+
+output "aws_wafv2_web_acl_arn" {
+  description = "ARN of the WAF Web ACL"
+  value       = aws_wafv2_web_acl.main.arn
+}
