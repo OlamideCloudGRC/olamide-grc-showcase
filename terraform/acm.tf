@@ -1,7 +1,12 @@
+locals {
+  root_domain = trimsuffix(data.aws_route53_zone.main_zone.name, ".")
+}
+
 
 # Request ACM in the same region as ALB
 resource "aws_acm_certificate" "alb_cert" {
-  domain_name       = data.aws_route53_zone.main_zone.name
+  domain_name       = local.root_domain
+  subject_alternative_names = ["www.${local.root_domain}"]
   validation_method = "DNS"
 
   lifecycle {

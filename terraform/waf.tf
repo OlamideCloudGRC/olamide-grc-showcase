@@ -238,10 +238,10 @@ resource "aws_sns_topic_subscription" "waf_email_alerts" {
 resource "aws_cloudwatch_metric_alarm" "waf_blocks_spike" {
   alarm_name          = "WAF-BlockedRequests-Spike"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
+  evaluation_periods  = 3
   metric_name         = "BlockedRequests"
   namespace           = "AWS/WAFV2"
-  period              = 200
+  period              = 300
   statistic           = "Sum"
   threshold           = 10
   alarm_description   = "Spike in blocked requests across the web ACL (possible attack or falss positive)"
@@ -256,13 +256,13 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocks_spike" {
 
 
 # Cloudwatch alarm:Trigger on Rate-Limit rule blocks
-resource "aws_cloudwatch_metric_alarm" "waf_blocks_spike" {
+resource "aws_cloudwatch_metric_alarm" "waf_ratelimit_blocks" {
   alarm_name          = "WAF-RateLimit-Triggered"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
+  evaluation_periods  = 3
   metric_name         = "BlockedRequests"
   namespace           = "AWS/WAFV2"
-  period              = 200
+  period              = 300
   statistic           = "Sum"
   threshold           = 10
   alarm_description   = "Rate Limit rule is blocking many requests"
@@ -280,10 +280,10 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocks_spike" {
 resource "aws_cloudwatch_metric_alarm" "waf_common_count" {
   alarm_name          = "WAF-CommonRule-Count-High"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
+  evaluation_periods  = 3
   metric_name         = "CountedRequests"
   namespace           = "AWS/WAFV2"
-  period              = 200
+  period              = 300
   statistic           = "Sum"
   threshold           = 100
   alarm_description   = "CommonRuleSet is counting many matches"

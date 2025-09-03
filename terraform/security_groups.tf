@@ -44,3 +44,79 @@ resource "aws_security_group" "alb_sg" {
   )
 }
 
+
+###------------------------------------------------------
+# Instance security group and components
+# Security groups + ingress rules + egress rules
+###------------------------------------------------------
+#--------------- Creating Security Group for Bastion server ----------
+resource "aws_security_group" "bastion_sg" {
+  name        = "Bastion_SG"
+  description = "Security Group for the Bastion Server"
+  vpc_id      = aws_vpc.main.id
+
+  # Allow ssh to the bastion server
+  ingress {
+    description = "Allow inbound SSH traffic to the Bastion server"
+    from_port   = -1
+    to_port     = -1
+    protocol    = "icmp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "GRC-Bastion-Security-Group"
+    Environment = var.environment
+  }
+
+}
+
+
+
+resource "aws_security_group" "app_sg" {
+  name        = "grc-app-sg"
+  description = "Security group for GRC application instances"
+  vpc_id      = aws_vpc.main.id
+
+  # Allow SSH from bastion only
+  ingress {
+    description     = "SSH from bastion host"
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion_sg.id]
+  }
+
+  # Allow HTTP from ALB only
+  ingress {
+    description     = "HTTP from ALB"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  # Allow outbound traffic
+  egress {
+    description = "Allow outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "GRC-App-Security-Group"
+    Environment = var.environment
+  }
+}
+
+

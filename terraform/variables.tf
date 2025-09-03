@@ -266,3 +266,21 @@ variable "waf_log_bucket" {
     error_message = "Log bucket prefix must be 3-63 characters, lowercase and contains only letters, numbers and hyphens."
   }
 }
+
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "min_size" {
+  description = "Minimum number of instances in ASG"
+  type        = number
+  default     = 1
+}
+
+variable "max_size" {
+  description = "Maximum number of instances in ASG"
+  type        = number
+  default     = 3
+}

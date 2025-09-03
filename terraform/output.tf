@@ -86,3 +86,8 @@ output "aws_wafv2_web_acl_arn" {
   description = "ARN of the WAF Web ACL"
   value       = aws_wafv2_web_acl.main.arn
 }
+
+output "asg_name" {
+  description = "The name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.grc_asg.name
+}

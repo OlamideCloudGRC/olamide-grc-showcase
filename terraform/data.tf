@@ -31,3 +31,19 @@ data "aws_route53_zone" "main_zone" {
 
 # Get current region
 data "aws_region" "current" {}
+
+# Get ami
+data "aws_ami" "latest_grc_ami" {
+  most_recent = true
+  owners      = ["self"]
+
+  filter {
+    name   = "name"
+    values = ["GRC_Security"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}

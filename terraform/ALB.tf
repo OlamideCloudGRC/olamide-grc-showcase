@@ -83,6 +83,7 @@ resource "aws_lb_listener" "http" {
 
 # Create HTTPS listner
 resource "aws_lb_listener" "https" {
+  depends_on = [ aws_acm_certificate_validation.alb_cert ]
   load_balancer_arn = aws_lb.app_lb.arn
   port              = "443"
   protocol          = "HTTPS"
@@ -94,4 +95,31 @@ resource "aws_lb_listener" "https" {
     target_group_arn = aws_lb_target_group.alb_tg.arn
   }
 
+}
+
+
+# Route 53: Create A record that maps domaine name to elb
+resource "aws_route53_record" "root_to_alb" {
+  zone_id = data.aws_route53_zone.main_zone.id
+  name = data.aws_route53_zone.main_zone.name
+  type = "A"
+
+  alias {
+    name = aws_lb.app_lb.dns_name
+    zone_id = aws_lb.app_lb.zone_id
+    evaluate_target_health = false 
+  }
+}
+
+# Route 53: Create A record that maps domaine name to elb
+resource "aws_route53_record" "www_to_alb" {
+  zone_id = data.aws_route53_zone.main_zone.id
+  name = "www"
+  type = "A"
+
+  alias {
+    name = aws_lb.app_lb.dns_name
+    zone_id = aws_lb.app_lb.zone_id
+    evaluate_target_health = false 
+  }
 }

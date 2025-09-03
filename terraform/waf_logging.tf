@@ -6,6 +6,10 @@
 # Create S3 bucket for WAF logs
 resource "aws_s3_bucket" "waf_logs" {
   bucket = "${var.waf_log_bucket}-${lower(var.environment)}-${data.aws_caller_identity.current.account_id}"
+
+  # Allow force destroy in non prod environment
+  force_destroy = var.environment != "Prod"
+
   tags = {
     Name = "waf-logs"
   }
