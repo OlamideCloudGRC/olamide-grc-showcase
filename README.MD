@@ -24,22 +24,22 @@ This project demonstrates enterprise-grade cloud security by implementing **poli
 ```mermaid
 graph TB
     %% ===== Secure Deployment Layer =====
-    subgraph "Secure Deployment Layer"
-        A[:memo: Terraform Code] --> B[:key: Assume Role]
-        B --> C[:bust_in_silhouette: PortfolioTerraformExecutionRole]
-        C --> D[:closed_lock_with_key: Least-Privilege Access]
+    subgraph "🔐 Secure Deployment Layer"
+        A[📝 Terraform Code] --> B[🎓 Assume Role]
+        B --> C[👤 PortfolioTerraformExecutionRole]
+        C --> D[🔒 Least-Privilege Access]
     end
 
     %% ===== Security Controls =====
-    subgraph "Security Controls"
-        E[:no_entry: Prevent] --> F[:scroll: SCP Policies / :globe_with_meridians: WAF / :lock: Encryption]
-        G[:mag: Detect] --> H[:satellite: GuardDuty / :gear: AWS Config / :satellite_antenna: Monitoring]
-        I[:zap: Respond] --> J[:robot: Auto-Containment / SOAR]
+    subgraph "🛡️ Security Controls"
+        E[🛑 Prevent] --> F[📜 SCP Policies /🌐 WAF / 🔒 Encryption]
+        G[🔎 Detect] --> H[🛰️ GuardDuty / ⚙️ AWS Config /  📡 Monitoring]
+        I[⚡ Respond] --> J[🤖 Auto-Containment / SOAR]
     end
 
     %% ===== Application Layer =====
-    subgraph "Application Layer"
-        K[:earth_africa: Internet] --> L[:globe_with_meridians: WAF] --> M[:twisted_rightwards_arrows: ALB] --> N[:chart_with_upwards_trend: Auto Scaling]
+    subgraph "☁️ Application Layer"
+        K[🌍 Internet] --> L[🌐 WAF] --> M[🔀 ALB] --> N[📈 Auto Scaling]
     end
 
     %% ===== Cross links =====
