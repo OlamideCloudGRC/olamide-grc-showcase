@@ -22,9 +22,16 @@ This project demonstrates enterprise-grade cloud security by implementing **poli
 
 
 ```mermaid
-graph TB
+graph LR
+    %% ===== Application Layer =====
+    subgraph "☁️ Application Layer"
+        direction TB
+        K[🌍 Internet] --> L[🌐 WAF] --> M[🔀 ALB] --> N[📈 Auto Scaling]
+    end
+    
     %% ===== Secure Deployment Layer =====
     subgraph "🔐 Secure Deployment Layer"
+        direction TB
         A[📝 Terraform Code] --> B[🎓 Assume Role]
         B --> C[👤 PortfolioTerraformExecutionRole]
         C --> D[🔒 Least-Privilege Access]
@@ -32,14 +39,10 @@ graph TB
 
     %% ===== Security Controls =====
     subgraph "🛡️ Security Controls"
+        direction TB
         E[🛑 Prevent] --> F[📜 SCP Policies /🌐 WAF / 🔒 Encryption]
         G[🔎 Detect] --> H[🛰️ GuardDuty / ⚙️ AWS Config /  📡 Monitoring]
         I[⚡ Respond] --> J[🤖 Auto-Containment / SOAR]
-    end
-
-    %% ===== Application Layer =====
-    subgraph "☁️ Application Layer"
-        K[🌍 Internet] --> L[🌐 WAF] --> M[🔀 ALB] --> N[📈 Auto Scaling]
     end
 
     %% ===== Cross links =====
