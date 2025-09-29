@@ -43,7 +43,6 @@ graph TB
     end
 
     %% ===== Cross links =====
-    B --> E
     G --> I
-    M --> G
+    
 
