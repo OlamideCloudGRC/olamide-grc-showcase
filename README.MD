@@ -22,7 +22,7 @@ This project demonstrates enterprise-grade cloud security by implementing **poli
 
 
 ```mermaid
-graph LR
+flowchart LR
     %% ===== Application Layer =====
     subgraph "☁️ Application Layer"
         direction TB
@@ -37,8 +37,8 @@ graph LR
         I[⚡ Respond] --> J[🤖 Auto-Containment / SOAR]
     end
     
-    %% ===== Secure Deployment Layer =====
-    subgraph "🔐 Secure Deployment Layer"
+    %% ===== Secure Deployment =====
+    subgraph "🔐 Secure Deployment"
         direction TB
         A[📝 Terraform Code] --> B[🎓 Assume Role]
         B --> C[👤 PortfolioTerraformExecutionRole]
