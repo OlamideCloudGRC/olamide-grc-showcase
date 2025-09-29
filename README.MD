@@ -28,6 +28,14 @@ graph LR
         direction TB
         K[🌍 Internet] --> L[🌐 WAF] --> M[🔀 ALB] --> N[📈 Auto Scaling]
     end
+
+    %% ===== Security Controls =====
+    subgraph "🛡️ Security Controls"
+        direction TB
+        E[🛑 Prevent] --> F[📜 SCP Policies /🌐 WAF / 🔒 Encryption]
+        G[🔎 Detect] --> H[🛰️ GuardDuty / ⚙️ AWS Config /  📡 Monitoring]
+        I[⚡ Respond] --> J[🤖 Auto-Containment / SOAR]
+    end
     
     %% ===== Secure Deployment Layer =====
     subgraph "🔐 Secure Deployment Layer"
@@ -37,13 +45,7 @@ graph LR
         C --> D[🔒 Least-Privilege Access]
     end
 
-    %% ===== Security Controls =====
-    subgraph "🛡️ Security Controls"
-        direction TB
-        E[🛑 Prevent] --> F[📜 SCP Policies /🌐 WAF / 🔒 Encryption]
-        G[🔎 Detect] --> H[🛰️ GuardDuty / ⚙️ AWS Config /  📡 Monitoring]
-        I[⚡ Respond] --> J[🤖 Auto-Containment / SOAR]
-    end
+
 
     %% ===== Cross links =====
     G --> I
