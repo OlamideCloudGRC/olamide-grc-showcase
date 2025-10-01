@@ -190,23 +190,6 @@ Protecting web applications from evolving threats while maintaining performance 
 - Maintained availability during volumetric attacks
 
 ---
-### Framework Implementation Strategy
-**NIST Cybersecurity Framework**
-
-- **Identify**: Comprehensive asset management through AWS Config and resource tagging
-- **Protect**: Multi-layered security controls with encryption, access management, and network protection
-- **Detect**: Continuous monitoring through GuardDuty, CloudWatch, and AWS Config
-- **Respond**: Automated incident response with orchestrated containment actions
-- **Recover**: Backup systems, forensic preservation, and improvement processes
-
-**PCI-DSS Compliance Coverage**
-
-- 100% of technical requirements addressed through automated controls
-- Continuous compliance validation vs point-in-time assessments
-- Audit-ready documentation through infrastructure-as-code and logging
-
-
-
 
 ## 🎓 Expertise & Differentiators  
 
@@ -248,9 +231,9 @@ Protecting web applications from evolving threats while maintaining performance 
    - 40% overall savings while strengthening security  
 
 4. **Production-Ready Patterns**  
-   - AWS Well-Architected aligned  
-   - FEnd-to-end observability with logging, monitoring, and alerting  
-   - High Availability (HA) and Disaster Recovery (DR) built-in
+   - All implementations follow AWS Well-Architected Framework principles  
+   - Comprehensive observability with logging, monitoring, and alerting  
+   - Disaster recovery (DR) and high availability (HA) built into security controls
 
 
 ---
