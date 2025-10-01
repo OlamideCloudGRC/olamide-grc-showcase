@@ -67,18 +67,18 @@ graph LR
 
     %% ==== HIPAA (Right) ====
     subgraph HIPAA
-        D1[§164.316 Policies & Procedures]
-        D2[§164.308(a)(6) Incident Response]
-        D3[§164.312(a)(1) Access Control]
-        D4[§164.312(d) Authentication]
-        D5[§164.312(b) Audit Controls]
-        D6[§164.312(e)(1) Transmission Security]
-        D7[§164.312(a)(2)(iv) Encryption/Decryption]
+        D1["§164.316 Policies & Procedures"]
+        D2["§164.308(a)(6) Incident Response"]
+        D3["§164.312(a)(1) Access Control"]
+        D4["§164.312(d) Authentication"]
+        D5["§164.312(b) Audit Controls"]
+        D6["§164.312(e)(1) Transmission Security"]
+        D7["§164.312(a)(2)(iv) Encryption/Decryption"]
     end
 
     %% ==== OWASP (Right) ====
     subgraph OWASP
-        E1[Top 10 Risks<br>(Injection, XSS, etc.)]
+        E1["Top 10 Risks<br>(Injection, XSS, etc.)"]
     end
     %% ==== Mapping Arrows ====
         A1 --> B1 & B2 & C1 & C2 & D1
