@@ -25,68 +25,58 @@ Frameworks covered:
 
 ---
 ## 📈 Visual Crosswalk
+
 ```mermaid
 graph LR
-    %% ==== Features (Left) ====
-    subgraph Features
-        A1[🛡️ Policy-as-Code & Automated Governance]
-        A2[⚡ Zero-Touch Incident Response]
-        A3[💰 Cost-Optimized Security]
-        A4[🔐 Deployment Security]
-        A5[🔒 Data Protection & Encryption]
-        A6[🌐 Network & App Protection]
+    %% ---- Features (left) ----
+    subgraph "Features"
+        A1["🛡️ Policy-as-Code & Automated Governance"]
+        A2["⚡ Zero-Touch Incident Response"]
+        A3["💰 Cost-Optimized Security"]
+        A4["🔐 Deployment Security"]
+        A5["🔒 Data Protection & Encryption"]
+        A6["🌐 Network & App Protection"]
     end
 
-    %% ==== NIST CSF (Right) ====
-    subgraph NIST CSF
-        B1[PR.IP-1 Baseline Config]
-        B2[PR.IP-3 Config Change Control]
-        B3[RS.RP-1 Response Execution]
-        B4[RS.MI-1 Incident Mitigation]
-        B5[PR.DS-1 Data at Rest]
-        B6[PR.DS-2 Data in Transit]
-        B7[PR.AC-1 Identity Mgmt]
-        B8[PR.AC-4 Least Privilege]
-        B9[PR.AC-5 Network Segmentation]
-        B10[DE.CM-1 Network Monitoring]
+    %% ---- Framework Groups (right) ----
+    subgraph "Framework Groups"
+        NIST["NIST CSF (Protect/Detect/Respond)"]
+        PCI["PCI DSS (Access/Encryption/IR)"]
+        HIPAA["HIPAA §164 (Access/Transmit/Audit)"]
+        OWASP["OWASP Top 10 (Web App Risks)"]
     end
 
-    %% ==== PCI DSS (Right) ====
-    subgraph PCI DSS
-        C1[Req.2.2 Secure Configs]
-        C2[Req.2.4 System Inventory]
-        C3[Req.3 Stored Data Protection]
-        C4[Req.4 Encrypted Transmission]
-        C5[Req.7.2 Access Restrictions]
-        C6[Req.8.2 MFA]
-        C7[Req.10 Audit Logging]
-        C8[Req.12.10 Incident Response]
-        C9[Req.6.6 Web App Firewall]
-        C10[Req.11.4 IDS/IPS]
-    end
+    %% ---- Minimal, meaningful links ----
+    %% Policy-as-Code
+    A1 --> NIST
+    A1 --> PCI
+    A1 --> HIPAA
 
-    %% ==== HIPAA (Right) ====
-    subgraph HIPAA
-        D1["§164.316 Policies & Procedures"]
-        D2["§164.308(a)(6) Incident Response"]
-        D3["§164.312(a)(1) Access Control"]
-        D4["§164.312(d) Authentication"]
-        D5["§164.312(b) Audit Controls"]
-        D6["§164.312(e)(1) Transmission Security"]
-        D7["§164.312(a)(2)(iv) Encryption/Decryption"]
-    end
+    %% Incident Response
+    A2 --> NIST
+    A2 --> PCI
+    A2 --> HIPAA
 
-    %% ==== OWASP (Right) ====
-    subgraph OWASP
-        E1["Top 10 Risks<br>(Injection, XSS, etc.)"]
-    end
-    %% ==== Mapping Arrows ====
-        A1 --> B1 & B2 & C1 & C2 & D1
-        A2 --> B3 & B4 & C8 & D2 & D5
-        A3 --> B5 & C3 & C1 & D7
-        A4 --> B7 & B8 & C5 & C6 & C7 & D3 & D4 & D5
-        A5 --> B5 & B6 & C3 & C4 & D6 & D7
-        A6 --> B9 & B10 & C9 & C10 & D6 & E1
+    %% Cost-Optimized Security
+    A3 --> NIST
+    A3 --> PCI
+    A3 --> HIPAA
+
+    %% Deployment Security
+    A4 --> NIST
+    A4 --> PCI
+    A4 --> HIPAA
+
+    %% Data Protection & Encryption
+    A5 --> NIST
+    A5 --> PCI
+    A5 --> HIPAA
+
+    %% Network & App Protection
+    A6 --> NIST
+    A6 --> PCI
+    A6 --> OWASP
+
 ```
 
 
