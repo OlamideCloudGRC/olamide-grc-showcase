@@ -237,20 +237,35 @@ This model showcases my ability to **translate complex GRC requirements into aut
 ## Risk Heatmap (Visual)
 
 ```mermaid
-quadrantChart
-  title Risk Heatmap
-  x-axis Likelihood --> Low to High
-  y-axis Severity --> Low to Critical
-  quadrant-1 Low Residual Risk
-  quadrant-2 Monitor Closely
-  quadrant-3 Medium Priority
-  quadrant-4 High Priority
-  R1: [0.6, 0.7]  %% Unencrypted data
-  R2: [0.7, 1.0]  %% EC2 compromise
-  R3: [0.4, 0.6]  %% False compliance
-  R4: [0.5, 0.8]  %% Cert expiry
-  R5: [0.5, 0.5]  %% Lambda timeout
-  R6: [0.3, 0.5]  %% KMS rotation
+graph LR
+%% ---- Colors / styles ----
+classDef low fill:#dff6e0,stroke:#2e7d32,stroke-width:1px;
+classDef med fill:#fff4cc,stroke:#b26a00,stroke-width:1px;
+classDef high fill:#ffd6cc,stroke:#c62828,stroke-width:1px;
+classDef crit fill:#ffb3b3,stroke:#8b0000,stroke-width:2px;
+
+%% ---- Columns = Likelihood ----
+subgraph L1["Likelihood → Low"]
+direction TB
+C1["Impact: Low<br/><small>• R5: Minor config drift</small>"]:::low
+C2["Impact: Medium<br/><small>• R6: Stale IAM user</small>"]:::med
+C3["Impact: High<br/><small>&nbsp;</small>"]:::high
+end
+
+subgraph L2["Likelihood → Medium"]
+direction TB
+C4["Impact: Low<br/><small>&nbsp;</small>"]:::med
+C5["Impact: Medium<br/><small>• R3: Public S3 bucket</small>"]:::high
+C6["Impact: High<br/><small>• R2: EC2 compromise</small>"]:::crit
+end
+
+subgraph L3["Likelihood → High"]
+direction TB
+C7["Impact: Low<br/><small>&nbsp;</small>"]:::high
+C8["Impact: Medium<br/><small>• R4: WAF misconfig</small>"]:::crit
+C9["Impact: High<br/><small>• R1: Data exfiltration</small>"]:::crit
+end
+
 ```
 
 ---
@@ -289,7 +304,7 @@ graph LR
   classDef threat fill:#ffe6e6,stroke:#c33,stroke-width:1px,color:#222;
   classDef mit fill:#e6f5ff,stroke:#269,stroke-width:1px,color:#222;
 
-  subgraph STRIDE Threats 🧭
+  subgraph STRIDE Threats
     S[Spoofing]:::threat
     T[Tampering]:::threat
     R[Repudiation]:::threat
@@ -298,7 +313,7 @@ graph LR
     E[Elevation of Privilege]:::threat
   end
 
-  subgraph Key Mitigations 🛡️
+  subgraph Key Mitigations
     M1[Lambda resource policies]:::mit
     M2[IAM trust & least privilege]:::mit
     M3[IMDSv2 enforced]:::mit
