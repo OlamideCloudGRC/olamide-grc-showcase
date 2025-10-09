@@ -5,6 +5,13 @@
 ![Python](https://img.shields.io/badge/Code-Python-blue?logo=python&logoColor=white)
 ![Security](https://img.shields.io/badge/Focus-Security-red?logo=datadog&logoColor=white)
 
+## Certifications
+
+![AWS Solutions Architect Associate](https://img.shields.io/badge/AWS_Solutions_Architect_Associate-232F3E?logo=amazonaws&logoColor=white)
+![AWS SysOps Administrator Associate](https://img.shields.io/badge/AWS_SysOps_Administrator_Associate-232F3E?logo=amazonaws&logoColor=white)
+![AWS Security Specialty](https://img.shields.io/badge/AWS_Security_Specialty-232F3E?logo=amazonaws&logoColor=white)
+
+---
 
 ## Executive Summary
 **Transforming GRC Requirements into Automated, Secure Cloud Infrastructure**
