@@ -119,4 +119,27 @@ resource "aws_security_group" "app_sg" {
   }
 }
 
+###------------------------------------------------------
+# Quarantine Security group for compromised instance
+# Security groups + ingress rules + egress rules
+###------------------------------------------------------
 
+resource "aws_security_group" "quarantine_sg" {
+  name        = var.quarantine_sg_name
+  description = "Quarantine SG: isolate compromised instances (no inbound or outbound)"
+  vpc_id      = aws_vpc.main.id
+
+  # Explicitly ensure NO inbound
+  ingress = []
+
+  # Explicitly ensure NO Outbound
+  egress = [] # ensures AWS default outbound rule is revoked
+
+  tags = {
+    Name        = var.quarantine_sg_name
+    Purpose     = "EC2-Quarantine"
+    ManagedBy   = "Terraform"
+    Project     = "GRC-Portfolio"
+    Environment = var.environment
+  }
+}

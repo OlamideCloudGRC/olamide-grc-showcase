@@ -284,3 +284,21 @@ variable "max_size" {
   type        = number
   default     = 3
 }
+
+variable "incident_response_function_name" {
+  description = "Name of the Lambda function for compromised EC2"
+  type        = string
+  default     = "compromised_ec2_response"
+}
+
+variable "incident_response_lambda_handler" {
+  description = "Handler entry point in the format: <filename>.<function_name>"
+  type        = string
+  default     = "compromised_ec2_response.lambda_handler"
+}
+
+variable "quarantine_sg_name" {
+  description = "Name of the quarantine security group"
+  type        = string
+  default     = "compromise-response-quarantine-sg"
+}

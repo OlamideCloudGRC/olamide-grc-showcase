@@ -1037,3 +1037,228 @@ resource "aws_s3_bucket_versioning" "alb_log_bucket" {
 
 }
 
+
+
+###------------------------------------------------------
+# AWS LAMBDA COMPONENTS for compromised EC2
+# AWS Lambda + related resources 
+###------------------------------------------------------
+
+# Write IAM policy for Lambda execution role
+data "aws_iam_policy_document" "lambda_incident_response_assume_role" {
+  statement {
+    effect = "Allow"
+
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+
+    }
+
+  }
+}
+
+# Create Lambda execution role
+resource "aws_iam_role" "lambda_incident_response_exec_role" {
+  name               = "lambda_incident_response_exec_role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_incident_response_assume_role.json
+  path               = "/portfolio/"
+  tags = {
+    Project = "GRC-Portfolio"
+  }
+}
+
+
+# Add permissions for Lambda function
+data "aws_iam_policy_document" "lambda_incident_response_permissions" {
+
+  # Permission for Security Hub submission
+  statement {
+    sid    = "SecurityHubSubmitFindings"
+    effect = "Allow"
+    actions = [
+      "securityhub:DescribeHub",
+      "securityhub:BatchImportFindings"
+    ]
+    resources = ["*"]
+  }
+
+
+  # Permission for CloudWatch Logs
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.incident_response_function_name}:*"
+    ]
+
+  }
+
+  # Permission to write custom CloudWatch metrics
+  statement {
+    sid    = "AllowPutMetricData"
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+    resources = ["*"]
+  }
+
+
+  # ec2 permissions
+  statement {
+    sid    = "EC2ContainmentActions"
+    effect = "Allow"
+    actions = [
+      "ec2:DescribeInstances",
+      "ec2:DescribeSecurityGroups",
+      "ec2:CreateSecurityGroup",
+      "ec2:AuthorizeSecurityGroupIngress",
+      "ec2:AuthorizeSecurityGroupEgress",
+      "ec2:RevokeSecurityGroupIngress",
+      "ec2:RevokeSecurityGroupEgress",
+      "ec2:ModifyInstanceAttribute",
+      "ec2:CreateSnapshot",
+      "ec2:DescribeSnapshots",
+      "ec2:TerminateInstances",
+      "ec2:CreateTags"
+
+    ]
+    resources = ["*"]
+  }
+
+  # Allow ELB Actions
+  statement {
+    sid    = "ELBActions"
+    effect = "Allow"
+    actions = [
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DescribeTargetHealth",
+      "elasticloadbalancing:DeregisterTargets"
+    ]
+    resources = ["*"]
+  }
+
+  # Allow AutoScaling Actions
+  statement {
+    sid    = "AutoScalingActions"
+    effect = "Allow"
+    actions = [
+      "autoscaling:DetachInstances",
+      "autoscaling:DescribeAutoScalingInstances"
+
+    ]
+    resources = ["*"]
+  }
+
+
+  # Allow STS Permission
+  statement {
+    sid    = "STSPermissions"
+    effect = "Allow"
+    actions = [
+      "sts:GetCallerIdentity"
+
+    ]
+    resources = ["*"]
+  }
+}
+
+# Attach lambda permission to lambda execution role
+resource "aws_iam_role_policy" "lambda_incident_response_policy" {
+  name   = "${var.incident_response_function_name}-policy"
+  role   = aws_iam_role.lambda_incident_response_exec_role.id
+  policy = data.aws_iam_policy_document.lambda_incident_response_permissions.json
+}
+
+
+# Create zip archive of lambda handler file
+data "archive_file" "incident_response_lambda" {
+  type        = "zip"
+  source_file = "${path.module}/../lambda/compromised_ec2_response.py"
+  output_path = "${path.module}/../lambda/compromised_ec2_response.zip"
+}
+
+# Create Lambda function
+resource "aws_lambda_function" "compromised_ec2_response" {
+  filename         = data.archive_file.incident_response_lambda.output_path
+  function_name    = var.incident_response_function_name
+  role             = aws_iam_role.lambda_incident_response_exec_role.arn
+  handler          = var.incident_response_lambda_handler
+  source_code_hash = data.archive_file.incident_response_lambda.output_base64sha256
+  runtime          = var.runtime
+  timeout          = var.timeout
+  memory_size      = var.memory_size
+  architectures    = ["arm64"]
+  ephemeral_storage {
+    size = var.ephemeral_storage_size
+  }
+  environment {
+    variables = {
+      Environment        = var.environment
+      QUARANTINE_SG_NAME = var.quarantine_sg_name
+      QUARANTINE_SG_ID   = aws_security_group.quarantine_sg.id
+    }
+  }
+}
+
+
+# Eventbridge Rule to capture high-severity GuardDuty findings for EC2 instances
+resource "aws_cloudwatch_event_rule" "guardduty_ec2_compromise_rule" {
+  name        = "guardduty-ec2-compromise-finding"
+  description = "Trigger incident response for high-severity GuardDuty EC2 findings"
+
+  event_pattern = jsonencode({
+    source      = ["aws.guardduty"]
+    detail-type = ["GuardDuty Finding"]
+    detail = {
+      resource = {
+        resourceType = ["Instance"]
+      }
+      severity = [
+        { "numeric" = [">=", 6.9] }
+      ] # Severity >= 6.9 (HIGH and CRITICAL)
+
+      type = [
+        { "prefix" : "UnauthorizedAccess:EC2/" },
+        { "prefix" : "CryptoCurrency:EC2/" },
+        { "prefix" : "Backdoor:EC2/" },
+        { "prefix" : "Trojan:EC2/" },
+        { "prefix" : "Behavior:EC2/" },
+        { "prefix" : "PenTest:" },
+        { "prefix" : "Discovery:" }
+
+      ]
+    }
+  })
+}
+
+# EventBridge Target - sends matching events to the lambda function
+resource "aws_cloudwatch_event_target" "lambda_target" {
+  rule      = aws_cloudwatch_event_rule.guardduty_ec2_compromise_rule.name
+  target_id = "SendToLambda"
+  arn       = aws_lambda_function.compromised_ec2_response.arn
+
+  # Retry policy for transient failures
+  retry_policy {
+    maximum_retry_attempts       = 2
+    maximum_event_age_in_seconds = 3600 # 1 hour
+  }
+}
+
+# Grant event bridge permission to invoke Lambda function 
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowExecutionFromEventBridge"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.compromised_ec2_response.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.guardduty_ec2_compromise_rule.arn
+}
+

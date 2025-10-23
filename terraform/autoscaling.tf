@@ -46,7 +46,7 @@ resource "aws_launch_template" "web_lt" {
   instance_type          = var.instance_type
   ebs_optimized          = true
   vpc_security_group_ids = [aws_security_group.app_sg.id]
-  
+
   iam_instance_profile {
     name = aws_iam_instance_profile.app_instance_profile.name
   }
@@ -59,7 +59,7 @@ resource "aws_launch_template" "web_lt" {
       volume_type           = "gp3"
       encrypted             = false
       delete_on_termination = true
-      
+
     }
   }
   user_data = base64encode(<<-EOF

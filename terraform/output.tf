@@ -91,3 +91,15 @@ output "asg_name" {
   description = "The name of the Auto Scaling Group"
   value       = aws_autoscaling_group.grc_asg.name
 }
+
+output "eventbridge_rule_arn" {
+  value = aws_cloudwatch_event_rule.guardduty_ec2_compromise_rule.arn
+}
+
+output "incident_response_lambda_function_arn" {
+  value = aws_lambda_function.compromised_ec2_response.arn
+}
+
+output "quarantine_sg_id" {
+  value = aws_security_group.quarantine_sg.id
+}

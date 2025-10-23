@@ -5,9 +5,9 @@ locals {
 
 # Request ACM in the same region as ALB
 resource "aws_acm_certificate" "alb_cert" {
-  domain_name       = local.root_domain
+  domain_name               = local.root_domain
   subject_alternative_names = ["www.${local.root_domain}"]
-  validation_method = "DNS"
+  validation_method         = "DNS"
 
   lifecycle {
     create_before_destroy = true
