@@ -3,7 +3,7 @@
 ## The Business Problem
 Organizations moving to the cloud face a triple challenge: ensuring continuous security compliance, responding to threats at cloud speed, and controlling costs. Manual processes are slow, error-prone, and unsustainable at scale.
 
-## Our Solution: Automated Governance & Zero-Touch Security
+## Solution: Automated Governance & Zero-Touch Security
 This portfolio demonstrates a production-ready, enterprise-grade security platform built on AWS. It transforms GRC from a manual checklist into an automated, inherent property of the cloud environment.
 
 ### 🎯 Key Differentiators & Business Impact
