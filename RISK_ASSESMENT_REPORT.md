@@ -1,7 +1,7 @@
 # Technical Risk Assessment Report
 **Project:** AWS Security & Compliance Automation Portfolio
 **Date:** October 26, 2023
-**Author:** Olamide Solola, Security Engineer
+**Author:** Olamide Solola, Cloud Security & GRC Professional
 
 ## 1. Introduction
 This report assesses the security risks addressed by the automated GRC portfolio. The analysis follows a qualitative methodology, evaluating risks based on likelihood and impact to the confidentiality, integrity, and availability (CIA) triad.
