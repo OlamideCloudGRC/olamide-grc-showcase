@@ -1,6 +1,6 @@
-# ⚔️ Compromised EC2 Response – Testing Report 
+# ⚔️ Compromised EC2 Auto-Remediation – Testing Report 
 Author: Olamide Solola
-Date: June 27, 2025
+Date: OCT 17, 2025
 Version: 1.0
 
 ## 📘 Executive Summary
