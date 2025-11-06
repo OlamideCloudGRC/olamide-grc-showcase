@@ -116,9 +116,9 @@ All test scenarios passed successfully. The automated remediation function perfo
 
 ## 💼 Demonstrated Business Impact & GRC Value
 This project demonstrates a direct translation of policy into automated, enforceable code.
-•	**Control Automation**: Replaced a manual, 30+ minute runbook with a consistent, sub-60-second automated process, drastically reducing Mean Time to Contain (MTTC).
-•	**Audit Readiness**: Every action is automatically logged and reported to AWS Security Hub, creating an immutable audit trail that simplifies compliance demonstrations for NIST, CIS, and PCI-DSS.
-•	**Defense-in-Depth**: The solution integrates multiple AWS services (GuardDuty, EventBridge, Lambda, Security Hub) to create a resilient, self-healing security control that operates continuously.
-•	**Quantifiable Risk Reduction**: By automatically containing threats, the system directly reduces the potential financial impact associated with data breaches and system downtime.
+*	**Control Automation**: Replaced a manual, 30+ minute runbook with a consistent, sub-60-second automated process, drastically reducing Mean Time to Contain (MTTC).
+*	**Audit Readiness**: Every action is automatically logged and reported to AWS Security Hub, creating an immutable audit trail that simplifies compliance demonstrations for NIST, CIS, and PCI-DSS.
+*	**Defense-in-Depth**: The solution integrates multiple AWS services (GuardDuty, EventBridge, Lambda, Security Hub) to create a resilient, self-healing security control that operates continuously.
+*	**Quantifiable Risk Reduction**: By automatically containing threats, the system directly reduces the potential financial impact associated with data breaches and system downtime.
 
 
