@@ -1,7 +1,7 @@
 # Architecture Overview
 
 ## High-Level Design
-[[GRC Architecture](./architecture.svg)]
+![GRC Architecture](./architecture.svg)
 
 ## Architecture Components
 
