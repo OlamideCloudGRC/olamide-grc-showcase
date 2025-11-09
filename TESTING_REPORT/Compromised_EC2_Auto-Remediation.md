@@ -41,7 +41,7 @@ The manual response to a compromised EC2 instance is slow, error-prone, and diff
 Action: Simulated GuardDuty finding for EC2 compromise.
 Expected Behavior: EventBridge rule triggers Lambda function for affected instance.
 Result: ✅ Pass
-![alt text](image.png)
+![alt text](figure_1_simulated_guardDuty_finding.png)
 📸 Figure 1: Screenshot showing simulated GuardDuty finding.
 Observation: GuardDuty generated random instance IDs for synthetic tests; function handled non-existent IDs gracefully.
 
@@ -53,7 +53,7 @@ Observation: GuardDuty generated random instance IDs for synthetic tests; functi
 Lambda triggered successfully.
 Instance i-0ee9fcbcb58bb292c found in AutoScalingGroup: web-asg-prod.
 **Key Point**: Lambda executed cleanly with no permission or environment variable errors.
-![alt text](image-1.png)
+![alt text](figure_2_successful_invocation.png)
 📸 Figure 2: CloudWatch log showing successful invocation.
 
 **Scenario 3 – Instance Containment (Deregister from ALB)**
@@ -66,7 +66,7 @@ Evidence:
   "status": "SUCCESS",
   "severity": 3
 }
-![alt text](image-2.png)
+![alt text](figure_3_ALB_deregistration.png)
 📸 Figure 3: Log entry confirming successful deregistration from ALB.
 
 **Scenario 4 – Auto Scaling Group Detachment**
@@ -79,7 +79,7 @@ Evidence:
   "status": "SUCCESS",
   "severity": 3
 }
-![alt text](image-3.png)
+![alt text](figure_4_ASG_detachment.png)
 📸 Figure 4: CloudWatch log showing detachment from ASG.
 
 
@@ -88,7 +88,7 @@ Action: Apply quarantine SG.
 Expected Behavior: Lambda applies quarantine security group
 Result: ✅ Pass
 Evidence:
-![alt text](image-6.png)
+![alt text](figure_5_quarantine_sg_application.png)
 📸 Figure 5: CloudWatch logs showing quarantine SG was successfully applied.
 
 **Scenario 6 – Snapshot Creation & Forensic Backup**

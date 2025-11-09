@@ -4,7 +4,7 @@
 Establishes the secure foundation for Infrastructure-as-Code by provisioning a least-privilege Terraform execution role. Ensures all infrastructure deployments occur under scoped permissions, eliminating over-privileged deployments.
 
 ## 🔐 What This Creates
-- **Terraform Execution IAM Role** - Assumed by developers/CI-CD pipelines
+- **Terraform Execution IAM Role** - Assumed by engineers
 - **Least-Privilege Policies** - 200+ precisely scoped AWS permissions
 - **Secure State Backend** - S3 + DynamoDB for state storage and locking
 - **Role ARN Output** - Used by main infrastructure for assumed-role deployments
@@ -12,7 +12,7 @@ Establishes the secure foundation for Infrastructure-as-Code by provisioning a l
 ## ⚙️ How It Works
 ```mermaid
 flowchart LR
-    A[👤 Developer/CI-CD] --> B[🔄 Assume Role]
+    A[👤 Engineers] --> B[🔄 Assume Role]
     B --> C[👑 Terraform Execution Role]
     C --> D[🏗️ Deploy Infrastructure]
     C --> E[🔒 Scoped Permissions]

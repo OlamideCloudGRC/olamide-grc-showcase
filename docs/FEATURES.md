@@ -42,7 +42,7 @@ Security incidents often take hours to contain manually, allowing attackers more
 ### Solution Architecture
 - **Real-time Threat Detection**: AWS GuardDuty integration with custom high-severity filtering
 - **Automated Containment Workflow**: EventBridge rules trigger immediate response actions
-- **Forensic Preservation**: Automatic snapshot creation before any containment actions
+- **Forensic Preservation**: Automatic snapshot creation
 - **Security Orchestration**: Complete SOAR implementation with Lambda automation
 
 ### Key Capabilities
@@ -112,13 +112,11 @@ Insecure deployment practices with broad credentials expose pipelines to risks.
 - **Role Assumption Model**: Terraform requires specific execution role with limited permissions
 - **Zero Persistent Credentials**: No long-term access keys in code or CI/CD  
 - **Audit Trail Integration**: Every infrastructure change tied to specific assumed role sessions
-- **MFA Protection**: Multi-factor authentication required for role assumption 
 
 ### Key Capabilities
 - Role Assumption: Eliminates risk of exposed access keys  
 - Least Privilege Access: Terraform role has minimal necessary permissions  
-- Complete Audit Trail: Every change tracked with session identity and timing  
-- Break-Glass Access: Emergency access requires explicit, logged escalation  
+- Complete Audit Trail: Every change tracked with session identity and timing   
 
 ### Security Framework Alignment
 - **NIST CSF**: PR.AC-1 (Identity management), PR.AC-4 (Least privilege), PR.IP-3 (Change control/auditability)
@@ -140,7 +138,7 @@ Ensuring consistent data protection at rest and in transit.
 - **Encryption Enforcement**: S3 bucket policies explicitly denying unencrypted uploads  
 - **Automatic Key Management**: KMS with yearly automatic rotation and strict access policies  
 - **Modern TLS**:  TLS 1.2+ enforcement with strong cipher suites  
-- **Comprehensive Coverage**: Encryption applied to S3, EBS, ALB, and data in transit  
+- **Comprehensive Coverage**: Encryption applied to S3 (at rest), and enforced in transit via ALB and TLS.
 
 ### Key Capabilities
 -  Encryption Enforcement: Explicit denial of unencrypted object uploads  
