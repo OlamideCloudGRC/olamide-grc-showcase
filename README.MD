@@ -16,17 +16,57 @@
 ## Executive Summary
 **Transforming GRC Requirements into Automated, Secure Cloud Infrastructure**
 
-This project demonstrates enterprise-grade cloud security by implementing **policy-as-code, automated compliance, and zero-touch incident response** on AWS. Includes **secure deployment with role assumption** and **automated threat containment**.
+This project demonstrates how to operationalize Governance, Risk, and Compliance (GRC) by converting framework requirements into **policy-as-code**, **automated security controls**, and **zero-touch incident response** on AWS.
 
-> **Key Achievement**: Reduced incident response times from hours to seconds, while modeling cost optimization strategies that achieve up to 40% savings through intelligent automation.
+It delivers **secure-by-design cloud deployments** through **IAM role assumption**, continuous compliance monitoring, and **automated threat containment** aligned with NIST, PCI-DSS, HIPAA, and CIS.
+
+**Key Achievement**: Reduced critical incident response time from hours to seconds while implementing cost optimization measures that achieves up to 40% cloud spend savings.
+
+---
 
 ## Quick Facts
-- :shield: **Security Frameworks**: NIST, PCI-DSS, HIPAA
+- :shield: **Security Frameworks**: NIST, PCI-DSS, HIPAA, CIS
 - :zap: **Incident Response**: 2-minute automated containment vs. 4+ hours manual 
 - :bar_chart: **Cost Optimization**: 40% reduction in cloud spend
 - :lock: **Identity Security**: Least-privilege role assumption for deployments
 - :hammer_and_wrench: **Automation**: 100% infrastructure-as-code with policy enforcement
 
+---
+
+## Why This Project Matters (Real-World Business Impact)
+High-profile breaches, like the 2019 Capital One incident, highlight the catastrophic risks of cloud misconfigurations.
+In that breach, the attacker followed a predictable chain:
+1.	Exploit a misconfigured EC2 instance
+2.	Access the Instance Metadata Service (IMDSv1)
+3.	Steal IAM role credentials
+4.	Exfiltrate sensitive data from S3
+
+This project architecturally **breaks the attack chain at every step**, transforming theoretical GRC requirements into enforced, automated security.
+
+---
+
+## How This Project Mitigates the Capital One Attack Path
+
+| Capital One Breach Path        | This Project’s Automated Mitigation                                                                 |
+|--------------------------------|------------------------------------------------------------------------------------------------------|
+| **1. EC2 Misconfiguration**    | **Preventative**: Enforced IMDSv2-only deployments and hardened Terraform baselines                     |
+| **2. IMDSv1 Exploit**          | **Configuration Enforcement**: All EC2 resources validated for IMDSv2; drift automatically remediated   |
+| **3. IAM Credential Theft**    | **Least Privilege**: Strictly scoped IAM roles; no broad permissions or long-lived credentials          |
+| **4. S3 Data Exfiltration**    | **Detective & Responsive**: S3 events trigger automated remediation enforcing SSE-KMS encryption, blocking unencrypted or non-compliant uploads |
+
+This demonstrates how **GRC-driven automation** can materially reduce operational risk and prevent multimillion-dollar cloud breaches.
+
+---
+
+## Technical Architecture & Implementation
+
+**Preventative GRC Controls:** Terraform modules embed security policies—including **SSE-KMS encryption-by-default** for all S3 buckets, IMDSv2 enforcement, hardened security groups, and IAM least privilege—to ensure compliant deployments from the start.
+
+**Continuous Compliance:** AWS Config rules and custom Lambda functions continuously validate resources against **NIST, PCI-DSS, HIPAA, and CIS benchmarks**, with automated remediation for drift.
+
+**Automated Incident Response:** Amazon GuardDuty findings automatically trigger Lambda functions to perform containment actions such as isolating compromised EC2 instances or blocking non-compliant S3 uploads, reducing mitigation time from hours to minutes
+
+---
 
 ```mermaid
 flowchart LR

@@ -12,7 +12,7 @@ This portfolio demonstrates a production-ready, enterprise-grade security platfo
 | :--- | :--- | :--- |
 | **⚡ Incident Response** | **-99% MTTR** (Hours → Minutes) | Automated containment of compromised EC2 instances. |
 | **📜 Compliance** | **100% Enforcement** | Policy-as-Code (SCPs) prevents non-compliant deployments. |
-| **💰 Cost Optimization** | **~40% Cost Reduction** | S3 Bucket Keys, Lifecycle Policies, Graviton processors. |
+| **💰 Cost Optimization** | **~40% Cost Reduction** | S3 Bucket Keys, Lifecycle Policies. |
 | **🔐 Deployment Security** | **Zero Persistent Credentials** | Terraform uses role assumption with least privilege. |
 
 ## Core Capabilities in Action
