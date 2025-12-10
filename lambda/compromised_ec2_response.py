@@ -46,6 +46,7 @@ QUARANTINE_SG_NAME = "compromise-response-quarantine-sg"
 #==========================================#
 #             Service Clients              #
 #==========================================#
+"""Establish connection with the needed services"""
 securityhub = boto3.client('securityhub', config=Config(
    retries = {
       'max_attempts': 3,

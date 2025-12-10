@@ -64,7 +64,7 @@ This demonstrates how **GRC-driven automation** can materially reduce operationa
 
 **Continuous Compliance:** AWS Config rules and custom Lambda functions continuously validate resources against **NIST, PCI-DSS, HIPAA, and CIS benchmarks**, with automated remediation for drift.
 
-**Automated Incident Response:** Amazon GuardDuty findings automatically trigger Lambda functions to perform containment actions such as isolating compromised EC2 instances or blocking non-compliant S3 uploads, reducing mitigation time from hours to minutes
+**Automated Incident Response:** Amazon GuardDuty findings automatically trigger Lambda functions to perform containment actions such as isolating compromised EC2 instances or blocking non-compliant S3 uploads, reducing mitigation time from hours to minutes.
 
 ---
 
