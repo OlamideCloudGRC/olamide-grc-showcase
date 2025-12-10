@@ -1,4 +1,12 @@
 # ⚔️ Compromised EC2 Auto-Remediation – Testing Report 
+
+![Status: Passed](https://img.shields.io/badge/Status-Passed-green)
+![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-orange)
+![Terraform](https://img.shields.io/badge/IaC-Terraform-blue)
+![Security Hub](https://img.shields.io/badge/AWS-SecurityHub-yellow)
+![Automation](https://img.shields.io/badge/Automation-Enabled-success)
+
+
 Author: Olamide Solola
 Date: OCT 17, 2025
 Version: 1.0
@@ -97,10 +105,10 @@ Evidence:
 **Result**: ✅ Pass
 **Evidence**:
 Created snapshot snap-07f82a26fdeade4dd for instance i-0ee9fcbcb58bb292c.
-![alt text](image-4.png)
+![alt text](figure_6a_EBS_snapshot_creation_cloudwatch.png)
 📸 Figure 6a: CloudWatch log showing EBS snapshot creation.
 
-![alt text](image-5.png)
+![alt text](figure_6b_EBS_snapshot_creation_console.png)
 📸 Figure 6b: Console showing created snapshot
 
 **Scenario 7 – Termination or Quarantine Attempt**
@@ -108,7 +116,7 @@ Created snapshot snap-07f82a26fdeade4dd for instance i-0ee9fcbcb58bb292c.
 **Expected Behavior**: Lambda attempts instance shutdown.
 **Result**: ✅ Pass
 **Evidence**:
-![alt text](image-7.png)
+![alt text](figure_7_EC2_termination.png)
 📸 Figure 7: CloudWatch logs showing termination action.
 
 ## 🏁 Conclusion

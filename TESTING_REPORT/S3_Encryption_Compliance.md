@@ -68,10 +68,10 @@ aws s3 cp "C:\Users\olami\Downloads\Test_upload.docx" s3://grc-encrypted-s3-buck
 **Risk Mitigated:** Prevention of data exposure through unapproved encryption methods
 **Control Validation:** Bucket policy as preventive control
 
-![alt text](image-8.png)
+![alt text](figure_1_AccessDenied_CLI.png)
 📸 *Figure 1: CLI error message (AccessDenied)*
 
-![alt text](image-9.png)
+![alt text](figure_2_bucket_policy_enforcement.png)
 📸 *Figure 2: Screenshot of bucket policy enforcing encryption*
 
 ---
@@ -90,7 +90,7 @@ aws s3 cp "C:\Users\olami\Downloads\Test_upload.docx" s3://grc-encrypted-s3-buck
 **Key Point:** Bucket policy enforces `aws:kms` encryption only.
 **Risk Mitigated:** Prevention of data exposure through unapproved encryption methods
 **Control Validation:** Bucket policy as preventive control
-![alt text](image-10.png)
+![alt text](figure_3_sse_upload_AccessDenied_CLI.png)
 📸 *Figure 3: CLI command with --sse AES256. Upload failed. AccessDenied. Explicit Deny in resource-based policy*
 
 ---
@@ -110,11 +110,11 @@ aws kms list-aliases --query "Aliases[?TargetKeyId=='e9acc623-db8b-45a5-9e1f-ef5
 **Actual Result:** ✅ Pass
 **Explanation:** Default AWS-managed key (`alias/aws/s3`) used when none is specified.
 
-![alt text](image-11.png)
+![alt text](figure_4_successful_upload_CLI.png)
 📸 *Figure 4: CLI successful upload*
-![alt text](image-12.png)
+![alt text](figure_5_metadata_used_kms_key.png)
 📸 *Figure 5: Object metadata showing KMS key used*
-![alt text](image-13.png)
+![alt text](figure_6_kms_alias.png)
 📸 *Figure 6: CLI showing alias of KMS Key used for encryption*
 ---
 
@@ -124,11 +124,11 @@ aws kms list-aliases --query "Aliases[?TargetKeyId=='e9acc623-db8b-45a5-9e1f-ef5
 **Expected Result:** Lambda triggered, encryption check passes.
 **Actual Result:** ✅ Pass
 **Key Point:** Upload meets compliance and passes Lambda checks.
-![alt text](image-14.png)
+![alt text](figure_8_custom_kms_key_used.png)
 📸 *Figure 8: Metadata showing custom KMS key used*
-![alt text](image-15.png)
+![alt text](figure_9_alias_kms_key_used.png)
 📸 *Figure 9: CLI showing alias of the used KMS Key*
-![alt text](image-16.png)
+![alt text](figure_10_compliance.png)
 📸 *Figure 10: CloudWatch log showing compliance*
 
 ---
@@ -146,9 +146,9 @@ aws kms list-aliases --query "Aliases[?TargetKeyId=='e9acc623-db8b-45a5-9e1f-ef5
 * Lambda detected SSE-AES256 (non-compliant)
 * Auto-remediated to KMS encryption
 * CloudWatch alarm triggered, SNS notification sent
-![alt text](image-17.png)
+![alt text](figure_13_successful_remediation.png)
 📸 *Figure 13: CloudWatch log showing successful remediation*
-![alt text](image-18.png)
+![alt text](figure_17_SNS_notification_alarm.png)
 📸 *Figure 17: SNS notification about alarm*
 
 ---
@@ -167,9 +167,9 @@ aws kms list-aliases --query "Aliases[?TargetKeyId=='e9acc623-db8b-45a5-9e1f-ef5
 * FailedRemediations metric incremented
 * Security Hub finding logged
 
-![alt text](image-19.png)
+![alt text](figure_22_security_hub_finding.png)
 📸 *Figure 22: Security Hub finding*
-![alt text](image-20.png)
+![alt text](figure_23_SNS_notification_failed_remediation.png)
 📸 *Figure 23: SNS notification for failed remediation*
 
 ---
