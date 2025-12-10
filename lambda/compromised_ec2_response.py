@@ -29,10 +29,10 @@ import os
 #                Constants                 #
 #==========================================#
 COMPLIANCE_STANDARDS = [
-    # Requires processes for initiating corrective actions
+    # Detect unauthorized activity and enable corrective action
     "CIS AWS Foundation 2.2", 
 
-    # Incident response automation and handling
+    # Automated incident detection, containment, and reporting
     "NIST 800-53 IR-4",
 
     # Respond to and contain security incidents
