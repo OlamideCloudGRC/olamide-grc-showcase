@@ -265,7 +265,7 @@ def detach_from_asg(instance_id: str) -> None:
          raise ContainmentError(
             instance_id=instance_id,
             action="DetachFromASG",
-            severity=SeverityLevel.MEDIUM,
+            severity=SeverityLevel.HIGH,
             message=f"Instance {instance_id} is not part of an Auto Scaling Group (no ASG tag found)."
          )
       
