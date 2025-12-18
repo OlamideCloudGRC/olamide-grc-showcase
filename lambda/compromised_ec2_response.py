@@ -1,6 +1,7 @@
 
 """
 AWS Lambda: Automated EC2 Compromise Response
+Triggered primarily by GuardDuty findings via EventBridge.
 Features:
     - Automated Containement (ELB deregistration, ASG detachment, network quarantine)
     - Forensic evidence preservation (EBS Snapshots)
@@ -28,6 +29,9 @@ import os
 #==========================================#
 #                Constants                 #
 #==========================================#
+# Compliance standards mapped to automated detection, containment,
+# and incident response controls for audit traceability.
+
 COMPLIANCE_STANDARDS = [
     # Detect unauthorized activity and enable corrective action
     "CIS AWS Foundation 2.2", 
@@ -67,7 +71,10 @@ cloudwatch = boto3.client('cloudwatch')
 #       Class Definitions                  #
 #==========================================#
 class SeverityLevel(IntEnum):
-    """Enum for standardizing severity levels"""
+    """
+    Enum for standardizing severity levels across logging,
+    Security Hub reporting, and metrics.
+    """
     CRITICAL = 4 # Active compromise, immediate containement required
     HIGH = 3     # Successful containement actions
     MEDIUM = 2   # Partial success or non-critical errors
@@ -77,7 +84,13 @@ class SeverityLevel(IntEnum):
 
 # Define Incident response Exception class
 class IncidentResponseError(Exception):
-   """Base exception for incident response failures"""
+   """
+   Base exception for incident response failures.
+
+   Custom exceptions allow partial execution tracking and structured
+   failure reporting without prematurely terminating the function execution.
+
+   """
    def __init__(self, instance_id: str, action:str, severity: SeverityLevel, message:str):
       super().__init__(message)
       self.instance_id = instance_id
@@ -159,6 +172,8 @@ def get_quarantine_sg(vpc_id: str) -> str:
       ContainementError: If SG creation or modification fails
    """
 
+   # Prefer explicit SG ID via environment variable for controlled deployments;
+   # fall back to name-based lookup to remain environment-agnostic across accounts.
    sg_id =os.getenv("QUARANTINE_SG_ID")
    if sg_id:
       return sg_id
@@ -412,14 +427,22 @@ def report_to_security_hub(violation: Dict) -> Dict:
       dict: Security Hub API response.
    """
 
+   # Security Hub reporting is optional. If its not enabled, skip reporting
+   # instead of throwing avoidable boto3 error
    if not is_security_hub_enabled():
       return None
    
    try:
+      # Pull account + region dynamically so this works accross environments
       account_id = sts.get_caller_identity()["Account"]
       region = boto3.session.Session().region_name
+
+      # Security Hub expects ISO timestamps in UTC
       now = datetime.now(timezone.utc).isoformat()
 
+
+      # My code uses IntEnum severity, but Security Hub expects string labels.
+      # This mapping keeps the convertion clean and centralized
       severity_mapping = {
          SeverityLevel.CRITICAL: "CRITICAL",
          SeverityLevel.HIGH: "HIGH",
@@ -428,33 +451,62 @@ def report_to_security_hub(violation: Dict) -> Dict:
          SeverityLevel.INFO: "INFORMATIONAL"
       }
 
+      # If severity is missing/unexpected, default to HIGH
+      # so we don't accidentally under-report an incident
       severity_label = severity_mapping.get(violation["severity"], "HIGH")
 
+      # Build a unique finding ID so multiple incidents don't overwrite each other.
+      # Timestamp helps uniqueness
       finding_id = f"incident-response-{violation['instance_id']}-{int(time.time())}"
 
       response = securityhub.batch_import_findings(
          Findings = [{
+            # Required schema version for Security Hub findings.
             "SchemaVersion": "2018-10-08",
+
+            # Unique ID for this finding.
             "Id": finding_id,
+
+            # Identifies the "Product" submitting the finding.
+            # Using the default product ARN for this Account
             "ProductArn": f"arn:aws:securityhub:{region}:{account_id}:product/{account_id}/default",
+
+            # Identifies what generated the finding
             "GeneratorId": "EC2IncidentResponse",
+
+            # The AWS account where the incident occurred.
             "AwsAccountId": account_id,
+
             "CreatedAt": now,
             "UpdatedAt": now,
+
+            # Human readable summary.
             "Title": f"Automated Response: Compromised EC2 Instance {violation['instance_id']}",
             "Description": violation["message"],
+
+            # Tie the finding to the actual compromised instance.
             "Resources": [{
                "Type": "AwsEc2Instance",
                "Id":f"arn:aws:ec2:{region}:{account_id}:instance/{violation['instance_id']}",
                "Partition": "aws",
                "Region": region
             }],
+
+            # Mark as failed because this represents a security incident/policy validation.
+            # RelatedRequirements attaches CIS/NIST/PCI mapping for audit traceability.
             "Compliance":{
                "Status": "Failed",
                "RelatedRequirements": violation.get("standards", [])
             },
-            "Workflow":{"Status": "RESOLVED"}, # Mark as resolved as we ve contained it
+
+            # Marked as RESOLVED as we ve contained it by the time of the report.
+            # This finding is mainly for visibility/audit, not an open ticket
+            "Workflow":{"Status": "RESOLVED"},
+
+            # Archive so it's recorded but not constantly showing as an active issue.
             "RecordState": "ARCHIVED",
+
+            # Put severity + classification in the security Hub expected format.
             "FindingProviderFields": {
                "Severity": {"Label": severity_label},
                "Types": ["Effects/Compromised Instance", "Unusual Behaviors/ Instance"]
@@ -493,7 +545,9 @@ def log_incident_event(message:str, severity: SeverityLevel, **metadata) -> None
    }
    print(json.dumps(log_entry, indent=2))
 
-   # Report significant events to Security Hub
+   # Only HIGH and CRITICAL events are escalated to Security Hub 
+   # to reduce alert fatigue and focus on actionable incidents.
+   
    if severity >= SeverityLevel.HIGH:
       report_to_security_hub({
          **metadata,
@@ -550,6 +604,7 @@ def find_instance_id_in_event(event: Dict) -> Optional[str]:
    """ Attempt to extract instance ID from various event patterns"""
 
    # Common patterns in AWS events
+   # Currently triggered by GuardDuty. Patterns list supports future event sources.
    patterns = [
       # GuardDuty pattern
       ['detail', 'resource', 'instanceDetails', 'instanceId'],
@@ -644,6 +699,12 @@ def lambda_handler(event: Dict, context) -> Dict:
    
 
    # Execute Response Plan
+
+   # Response philosophy:
+   #1. Reduce blast radius
+   #2. Preserve evidence
+   #3. Rely on the Auto Scaling Group to restore service capacity
+   
    try:
       # Step 1: Drain from Load Balancer
       deregister_from_elb(instance_id)
